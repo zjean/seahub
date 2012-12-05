@@ -1,5 +1,6 @@
 # encoding: utf-8
 import os
+import time
 
 from django.test import TestCase, Client
 from django_liveserver.testcases import LiveServerTestCase
@@ -59,33 +60,6 @@ class BaseTest(LiveServerTestCase):
         if remove_user:
             self._teardown_new_user(username)
         
-    def test_can_login_and_logout(self):
-        self._setup_new_user(self.username, self.passwd)
-        # A user goes to the login page, and inputs username and password
-        self.browser.get(self.site_url+ '/accounts/login/')
-
-        # He sees the login heading
-        body = self.browser.find_element_by_tag_name('body')
-        self.assertIn(u'Log In', body.text)
-
-        # He types username and password
-        username_field = self.browser.find_element_by_name('username')
-        username_field.send_keys(self.username)
-        password_field = self.browser.find_element_by_name('password')
-        password_field.send_keys(self.passwd)
-        password_field.send_keys(Keys.RETURN)
-
-        # He is returned to myhome page
-        body = self.browser.find_element_by_tag_name('body')
-        self.assertIn(u'Libraries', body.text)
-
-        # He logout
-        self.browser.find_elements_by_link_text(u'Log out')[0].click()
-        body = self.browser.find_element_by_tag_name('body')
-        self.assertIn(u'Log In', body.text)
-
-        self._teardown_new_user(self.username)
-
     def test_can_modify_personal_infos(self):
         self._login_user()
 
@@ -198,7 +172,6 @@ class BaseTest(LiveServerTestCase):
         # Clean first user's libraries
         self._login_user()
         self._logout_user()
-        
 
     def _create_new_folder(self, folder_name):
         # He clicks the New Directory button
@@ -221,13 +194,13 @@ class BaseTest(LiveServerTestCase):
         self._create_new_folder('dir2')
         self.assertNotEquals(self.browser.find_elements_by_link_text('dir2'), None)
 
-        '''Moving folder from one to another'''
-        # He clicks more op icon
+        '''Moving folder `dir1` to `dir2`'''
+        # He move mouse to directory table list
         ele_to_hover_over = self.browser.find_elements_by_link_text('dir1')[0]
         hover = ActionChains(self.browser).move_to_element(ele_to_hover_over)
         hover.perform()
 
-        # He chooses move operation
+        # He clicks more op icon adn chooses move operation
         more_op = self.browser.find_element_by_css_selector('.repo-file-list .more-op-icon')
         more_op.click()
         self.browser.find_elements_by_link_text('Move')[0].click()
@@ -236,11 +209,47 @@ class BaseTest(LiveServerTestCase):
         self.browser.find_element_by_css_selector('.jstree-default .jstree-closed ins').click()
         self.browser.find_element_by_css_selector('.jstree-leaf a').click()
         self.browser.find_element_by_css_selector('#mv-form .submit').click()
+        time.sleep(1)
 
         # He sees seccessfull message
         body = self.browser.find_element_by_tag_name('body')
         self.assertIn('Successfully moving', body.text)
-        
+
+        '''Rename folder `dir2` to `dir3`'''
+        # He move mouse to directory table list
+        ele_to_hover_over = self.browser.find_elements_by_link_text('dir2')[0]
+        hover = ActionChains(self.browser).move_to_element(ele_to_hover_over)
+        hover.perform()
+
+        # He clicks more op icon adn chooses move operation
+        more_op = self.browser.find_element_by_css_selector('.repo-file-list .more-op-icon')
+        more_op.click()
+        self.browser.find_elements_by_link_text('Rename')[0].click()
+        newname_input = self.browser.find_element_by_name('newname')
+        for i in range(1, 5):
+            newname_input.send_keys(Keys.DELETE) # Clear old name
+        newname_input.send_keys('dir3')
+        newname_input.send_keys(Keys.RETURN)
+        time.sleep(1)
+        # He sees seccessfull message
+        body = self.browser.find_element_by_tag_name('body')
+        self.assertIn('Successfully rename', body.text)
+
+        '''Delete folder `dir3`'''
+        # He move mouse to directory table list
+        ele_to_hover_over = self.browser.find_elements_by_link_text('dir3')[0]
+        hover = ActionChains(self.browser).move_to_element(ele_to_hover_over)
+        hover.perform()
+
+        # He clicks more op icon adn chooses move operation
+        more_op = self.browser.find_element_by_css_selector('.repo-file-list .more-op-icon')
+        more_op.click()
+        self.browser.find_elements_by_link_text('Delete')[0].click()
+        time.sleep(1)
+        # He sees seccessfull message
+        body = self.browser.find_element_by_tag_name('body')
+        self.assertIn('successfully deleted', body.text)
+
         self._logout_user()
 
         
