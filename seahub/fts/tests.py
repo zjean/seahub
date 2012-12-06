@@ -60,28 +60,6 @@ class BaseTest(LiveServerTestCase):
         if remove_user:
             self._teardown_new_user(username)
         
-    def test_can_modify_personal_infos(self):
-        self._login_user()
-
-        self.browser.find_element_by_css_selector('.home-profile .avatar').click()
-        body = self.browser.find_element_by_tag_name('body')
-        self.assertIn(u'Profile Setting', body.text)
-
-        nickname_field = self.browser.find_element_by_name('nickname')
-        nickname_field.clear()
-        nickname_field.send_keys(u'test_nickname2012')
-
-        intro_field = self.browser.find_element_by_name('intro')
-        intro_field.clear()
-        intro_field.send_keys('Hi, My name is test.')
-        
-        self.browser.find_element_by_css_selector('.submit').click()
-
-        body = self.browser.find_element_by_tag_name('body')
-        self.assertIn(u'Successfully', body.text)
-
-        self._logout_user()
-
     def _create_new_library(self, name, desc, read_only=False, encrypt=False,
                             passwd=None):
         # He sees a button to 'add' a new repo, so he clicks it
@@ -115,6 +93,63 @@ class BaseTest(LiveServerTestCase):
         new_repo_links = self.browser.find_elements_by_link_text(name)
         self.assertNotEquals(len(new_repo_links), 0)
         
+    def _destroy_library(self, repo_name):
+        # He moves mouse to the table list
+        while(len(self.browser.find_elements_by_link_text(repo_name)) != 0):
+            ActionChains(self.browser).move_to_element(self.browser.find_elements_by_link_text(repo_name)[0]).perform()
+            # He sees a delete icon, and click it
+            del_btn = self.browser.find_element_by_css_selector('.repo-delete-btn')
+            del_btn.click()
+            # There pops a confirm dialog, so he click confirm button
+            self.assertIn('Delete Library', self.browser.find_element_by_css_selector('#confirm-con').text)
+            self.browser.find_element_by_css_selector('#confirm-yes').click()
+            time.sleep(0.2)
+        # Now there is no repo has that name
+        self.assertEquals(len(self.browser.find_elements_by_link_text(repo_name)), 0)
+
+    def _create_new_folder(self, folder_name):
+        # He clicks the New Directory button
+        self.browser.find_element_by_css_selector('#add-new-dir').click()
+        new_dir_input = self.browser.find_element_by_name('new_dir_name')
+        new_dir_input.send_keys(folder_name)
+        new_dir_input.send_keys(Keys.RETURN)
+
+    def _create_new_file(self, file_name, file_type='txt'):
+        # He clicks the New File button
+        self.browser.find_element_by_css_selector('#add-new-file').click()
+        
+        if file_type == 'txt':
+            # He inputs file name and press Enter button
+            new_file_input = self.browser.find_element_by_name('new_file_name')
+            new_file_input.send_keys(file_name)
+            new_file_input.send_keys(Keys.RETURN)
+        else:
+            self.fail('TODO')
+
+class AccountTest(BaseTest):
+    def test_can_modify_personal_infos(self):
+        self._login_user()
+
+        self.browser.find_element_by_css_selector('.home-profile .avatar').click()
+        body = self.browser.find_element_by_tag_name('body')
+        self.assertIn(u'Profile Setting', body.text)
+
+        nickname_field = self.browser.find_element_by_name('nickname')
+        nickname_field.clear()
+        nickname_field.send_keys(u'test_nickname2012')
+
+        intro_field = self.browser.find_element_by_name('intro')
+        intro_field.clear()
+        intro_field.send_keys('Hi, My name is test.')
+        
+        self.browser.find_element_by_css_selector('.submit').click()
+
+        body = self.browser.find_element_by_tag_name('body')
+        self.assertIn(u'Successfully', body.text)
+
+        self._logout_user()
+
+class LibraryTest(BaseTest):
     def test_can_create_new_library(self):
         self._login_user()
 
@@ -143,6 +178,14 @@ class BaseTest(LiveServerTestCase):
         self.assertIn('Upload', body.text)
         # He backs to Myhome page
         self.browser.find_elements_by_link_text('My Home')[0].click()
+
+        self._logout_user()
+
+    def test_can_destroy_library(self):
+        self._login_user()
+
+        self._create_new_library('test_repo', 'test repo desc')
+        self._destroy_library('test_repo')
 
         self._logout_user()
 
@@ -175,13 +218,7 @@ class BaseTest(LiveServerTestCase):
         self._login_user()
         self._logout_user()
 
-    def _create_new_folder(self, folder_name):
-        # He clicks the New Directory button
-        self.browser.find_element_by_css_selector('#add-new-dir').click()
-        new_dir_input = self.browser.find_element_by_name('new_dir_name')
-        new_dir_input.send_keys(folder_name)
-        new_dir_input.send_keys(Keys.RETURN)
-        
+class FolderTest(BaseTest):
     def test_folder_operations(self):
         self._login_user()
 
@@ -252,19 +289,8 @@ class BaseTest(LiveServerTestCase):
         self.assertIn('successfully deleted', body.text)
 
         self._logout_user()
-
-    def _create_new_file(self, file_name, file_type='txt'):
-        # He clicks the New File button
-        self.browser.find_element_by_css_selector('#add-new-file').click()
-        
-        if file_type == 'txt':
-            # He inputs file name and press Enter button
-            new_file_input = self.browser.find_element_by_name('new_file_name')
-            new_file_input.send_keys(file_name)
-            new_file_input.send_keys(Keys.RETURN)
-        else:
-            self.fail('TODO')
-
+    
+class FileTest(BaseTest):
     def test_file_operations(self):
         self._login_user()
 
@@ -328,3 +354,4 @@ class BaseTest(LiveServerTestCase):
         self.assertIn('Hello, world', body.text)
 
         self._logout_user()
+
