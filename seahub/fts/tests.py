@@ -68,9 +68,11 @@ class BaseTest(LiveServerTestCase):
         self.assertIn(u'Profile Setting', body.text)
 
         nickname_field = self.browser.find_element_by_name('nickname')
+        nickname_field.clear()
         nickname_field.send_keys(u'test_nickname2012')
 
         intro_field = self.browser.find_element_by_name('intro')
+        intro_field.clear()
         intro_field.send_keys('Hi, My name is test.')
         
         self.browser.find_element_by_css_selector('.submit').click()
@@ -226,8 +228,7 @@ class BaseTest(LiveServerTestCase):
         more_op.click()
         self.browser.find_elements_by_link_text('Rename')[0].click()
         newname_input = self.browser.find_element_by_name('newname')
-        for i in range(1, 5):
-            newname_input.send_keys(Keys.DELETE) # Clear old name
+        newname_input.clear()
         newname_input.send_keys('dir3')
         newname_input.send_keys(Keys.RETURN)
         time.sleep(1)
@@ -252,4 +253,78 @@ class BaseTest(LiveServerTestCase):
 
         self._logout_user()
 
+    def _create_new_file(self, file_name, file_type='txt'):
+        # He clicks the New File button
+        self.browser.find_element_by_css_selector('#add-new-file').click()
         
+        if file_type == 'txt':
+            # He inputs file name and press Enter button
+            new_file_input = self.browser.find_element_by_name('new_file_name')
+            new_file_input.send_keys(file_name)
+            new_file_input.send_keys(Keys.RETURN)
+        else:
+            self.fail('TODO')
+
+    def test_file_operations(self):
+        self._login_user()
+
+        # He create a new repo, clicked the repo name, and returned to the
+        # repo page
+        self._create_new_library('test_repo', 'test desc')
+        self.browser.find_elements_by_link_text('test_repo')[0].click()
+
+        # He creates a new file
+        self._create_new_file('test.txt')
+        self.assertNotEquals(self.browser.find_elements_by_link_text('test.txt'), None)
+
+        '''Rename file `test.txt` to `test2.txt`'''
+        # He move mouse to directory table list
+        ele_to_hover_over = self.browser.find_elements_by_link_text('test.txt')[0]
+        hover = ActionChains(self.browser).move_to_element(ele_to_hover_over)
+        hover.perform()
+        # He clicks more op icon adn chooses move operation
+        more_op = self.browser.find_element_by_css_selector('.repo-file-list .more-op-icon')
+        more_op.click()
+        self.browser.find_elements_by_link_text('Rename')[0].click()
+        h3 = self.browser.find_element_by_css_selector('#simplemodal-container h3')
+        self.assertIn('Rename', h3.text)
+        newname_input = self.browser.find_element_by_name('newname')
+        newname_input.clear()
+        newname_input.send_keys('test2.txt')
+        newname_input.send_keys(Keys.RETURN)
+        time.sleep(1)
+        body = self.browser.find_element_by_tag_name('body')
+        self.assertIn('Successfully rename', body.text)
+
+        self._logout_user()
+        
+    def test_edit_file(self):
+        self._login_user()
+
+        # He create a new repo, clicked the repo name, and returned to the
+        # repo page
+        self._create_new_library('test_repo', 'test desc')
+        self.browser.find_elements_by_link_text('test_repo')[0].click()
+
+        '''TXT File'''
+        # He creates a txt file
+        self._create_new_file('test.txt', file_type='txt')
+        # He clicks the file name, and returned to the file viewing page
+        self.browser.find_elements_by_link_text('test.txt')[0].click()
+        h2 = self.browser.find_element_by_tag_name('h2')
+        self.assertIn('test.txt', h2.text)
+        # He wants to type some texts, so he clicks Edit button
+        self.browser.find_element_by_css_selector('#edit').click()
+        # He returned to the file editing page
+        h2 = self.browser.find_element_by_tag_name('h2')
+        self.assertIn('Edit', h2.text)
+        # He types some text, and click submit button to save changes
+        for i in range(0, 5):
+            ActionChains(self.browser).send_keys('Hello, world').perform()
+            ActionChains(self.browser).send_keys(Keys.RETURN).perform()
+        self.browser.find_element_by_css_selector('#file-edit-submit').click()
+        time.sleep(1)
+        body = self.browser.find_element_by_tag_name('body')
+        self.assertIn('Hello, world', body.text)
+
+        self._logout_user()
