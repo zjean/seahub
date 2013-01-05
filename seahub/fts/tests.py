@@ -1,4 +1,12 @@
-# encoding: utf-8
+# -*- coding: utf-8 -*-
+"""
+Note: To run these function tests, you need to:
+
+* Installed Selenium.
+
+* Added two accounts, <foo@foo.com:foo>, <bar@bar.com:bar>.
+
+"""
 import os
 import time
 
@@ -10,7 +18,8 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 
 from seahub.base.accounts import User
-from seaserv import list_personal_repos_by_owner, remove_repo
+from seaserv import list_personal_repos_by_owner, remove_repo, remove_group, \
+    get_personal_groups_by_user
 
 class BaseTest(LiveServerTestCase):
     
@@ -32,7 +41,10 @@ class BaseTest(LiveServerTestCase):
         # First delete all repos created by user
         for e in list_personal_repos_by_owner(username):
             remove_repo(e.id)
-        # Then remove user
+        # Then remove all groups created by user
+        for e in get_personal_groups_by_user(username):
+            remove_group(e.id, username)
+        # At last remove user
         User.objects.get(email=username).delete()
 
     def _login_user(self, username=None, passwd=None):
@@ -40,7 +52,10 @@ class BaseTest(LiveServerTestCase):
             username = self.username
             passwd = self.passwd
 
-        self._setup_new_user(username, passwd)
+        if not self.site_url.startswith('http'):
+            # Setup new user if perform local test
+            self._setup_new_user(username, passwd)
+
         # A user goes to the login page, and inputs username and password
         self.browser.get(self.site_url+ '/accounts/login/')
         username_field = self.browser.find_element_by_name('username')
@@ -57,7 +72,8 @@ class BaseTest(LiveServerTestCase):
         if not username:
             username = self.username
         self.browser.find_elements_by_link_text(u'Log out')[0].click()
-        if remove_user:
+        if remove_user and (not self.site_url.startswith('http')):
+            # Tear down new user if perform local test
             self._teardown_new_user(username)
         
     def _create_new_library(self, name, desc, read_only=False, encrypt=False,
@@ -355,3 +371,48 @@ class FileTest(BaseTest):
 
         self._logout_user()
 
+class GroupTest(BaseTest):
+    def _create_new_group(self, grp_name):
+        self.browser.find_element_by_css_selector('#group-add').click()
+        h3 = self.browser.find_element_by_css_selector('#simplemodal-container h3')
+        self.assertIn('New Group', h3.text)
+        # He inputs group name, and press Enter
+        grp_name_input = self.browser.find_element_by_css_selector('#group_name')
+        grp_name_input.send_keys(grp_name)
+        grp_name_input.send_keys(Keys.RETURN)
+        time.sleep(0.2)
+        # There should be a group with that name
+        body = self.browser.find_element_by_tag_name('body')
+        self.assertIn(grp_name, body.text)
+
+    def test_can_create_new_group(self):
+        self._login_user()
+
+        # He is returns to myhome page, where he finds a link to create group
+        grp_link = self.browser.find_element_by_link_text('Create a group now')
+        if grp_link:
+            grp_link.click()
+        else:
+            # There already exists some groups, go to Group page to create group
+            self.browser.find_elements_by_link_text('Groups').click()
+
+        self._create_new_group('test_group')
+            
+        self._logout_user()
+
+    def test_messages_in_group(self):
+        self._login_user()
+
+        # He goes to Group page
+        self.browser.find_element_by_link_text('Groups').click()
+        # He creates a new group
+        self._create_new_group('test_group')
+        # He clicks the group name
+        self.browser.find_element_by_link_text('test_group').click()
+        # He is returned to the group info page, where he can leave messages
+        h2 = self.browser.find_element_by_tag_name('h2')
+        self.assertIn('test_group', h2.text)
+
+        self._logout_user()
+        
+        
