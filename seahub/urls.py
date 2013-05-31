@@ -51,6 +51,7 @@ urlpatterns = patterns('',
     url(r'^home/public/reply/(?P<msg_id>[\d]+)/$', innerpub_msg_reply, name='innerpub_msg_reply'),
     url(r'^home/owner/(?P<owner_name>[^/]+)/$', ownerhome, name='ownerhome'),
 
+
     (r'^repo/new_dir/$', repo_new_dir),
     (r'^repo/new_file/$', repo_new_file),
     (r'^repo/create/$', repo_create),
@@ -125,7 +126,7 @@ urlpatterns = patterns('',
 
     url(r'^user/(?P<id_or_email>[^/]+)/msgs/$', user_msg_list, name='user_msg_list'),
     url(r'^user/(?P<id_or_email>[^/]+)/shares/$', user_share_list, name='user_share_list'),
-                       
+
 )
 
 if settings.SERVE_STATIC:
@@ -171,4 +172,19 @@ if HAS_OFFICE_CONVERTER:
     urlpatterns += patterns('',
         url(r'^office-convert/status/$', office_convert_query_status, name='office_convert_query_status'),
         url(r'^office-convert/page-num/$', office_convert_query_page_num, name='office_convert_query_page_num'),
+    )
+
+from seahub.utils import HAS_TAGGING
+if HAS_TAGGING:
+    from seahub_extra.tagging.views import personal_tags, personal_tag_detail, personal_tag_delete, \
+        group_tags, group_tag_detail, group_tag_delete
+    urlpatterns += patterns('',
+        (r'^tags/', include('seahub_extra.tagging.urls')),
+        url(r'^home/tags/$', personal_tags, name='personal_tags'),
+        url(r'^home/tags/detail/(?P<tag>[^/]{1,})/$', personal_tag_detail, name='personal_tag_detail'),
+        url(r'^home/tags/delete/$', personal_tag_delete, name='personal_tag_delete'),
+
+        url(r'^group/(?P<group_id>\d+)/tags/$', group_tags, name='group_tags'),
+        url(r'^group/(?P<group_id>\d+)/tags/detail/(?P<tag>[^/]{1,})/$', group_tag_detail, name='group_tag_detail'),
+        url(r'^group/(?P<group_id>\d+)/tags/delete/$', group_tag_delete, name='group_tag_delete'),
     )

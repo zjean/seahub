@@ -440,6 +440,9 @@ def get_file_last_modified(repo_id, file_path):
     last_modified = 0
     file_path_hash = calc_file_path_hash(file_path)
     file_id = seafserv_threaded_rpc.get_file_id_by_path(repo_id, file_path)
+    if not file_id:
+        return '', 0
+
     try:
         fc = FileLastModifiedInfo.objects.get(repo_id=repo_id,
                                             file_path_hash=file_path_hash)
@@ -1040,6 +1043,7 @@ else:
 
 # search realted
 HAS_FILE_SEARCH = False
+HAS_TAGGING = False
 if EVENTS_CONFIG_FILE:
     def check_search_enabled():
         config = ConfigParser.ConfigParser()
@@ -1052,6 +1056,9 @@ if EVENTS_CONFIG_FILE:
         return enabled
 
     HAS_FILE_SEARCH = check_search_enabled()
+
+    if HAS_FILE_SEARCH:
+        HAS_TAGGING = True
 
 # Move to here to avoid circular import.
 from seahub.base.models import FileContributors, UserStarredFiles, DirFilesLastModifiedInfo, FileLastModifiedInfo

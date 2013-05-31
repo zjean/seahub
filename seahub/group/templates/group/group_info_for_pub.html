@@ -16,6 +16,9 @@
         <li class="tabnav-tab tabnav-tab-cur">{% trans "Libraries" %}</li>
         <li class="tabnav-tab"><a href="{% url 'group_discuss' group.id %}">{% trans "Discussion" %}</a></li>
         <li class="tabnav-tab"><a href="{% url 'group_wiki' group.id %}">{% trans "Wiki" %}</a></li>
+        {% if has_tagging %}
+        <li class="tabnav-tab"><a href="{% url 'group_tags' group.id %}">{% trans "Tags" %}</a></li>
+        {% endif %}
         {% if enable_pubfile %}
         <li class="tabnav-tab"><a href="{% url 'group_pubfiles' group.id %}">{% trans "Files" %}</a></li>
         {% endif %}

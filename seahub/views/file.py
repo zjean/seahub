@@ -44,11 +44,14 @@ from seahub.utils import get_httpserver_root, show_delete_days, render_error, \
 from seahub.utils.file_types import (IMAGE, PDF, IMAGE, DOCUMENT, MARKDOWN, \
                                          TEXT, SF)
 
-from seahub.utils import HAS_OFFICE_CONVERTER, query_office_convert_status, \
+from seahub.utils import HAS_TAGGING, HAS_OFFICE_CONVERTER, query_office_convert_status, \
     query_office_file_pages, prepare_converted_html
 
 from seahub.settings import FILE_ENCODING_LIST, FILE_PREVIEW_MAX_SIZE, \
     OFFICE_PREVIEW_MAX_SIZE, FILE_ENCODING_TRY_LIST, USE_PDFJS, MEDIA_URL
+
+if HAS_TAGGING:
+    from seahub_extra.tagging.utils import get_file_tags
 
 def get_user_permission(request, repo_id):
     if request.user.is_authenticated():
@@ -376,6 +379,14 @@ def view_file(request, repo_id):
         org_id = request.user.org['org_id']
     is_starred = is_file_starred(username, repo.id, path.encode('utf-8'), org_id)
 
+    # tags
+    if HAS_TAGGING:
+        tags_list = get_file_tags(repo.id, path)
+        tags = ', '.join(tags_list)
+    else:
+        tags_list = []
+        tags = ''
+
     template = 'view_file_%s.html' % ret_dict['filetype'].lower()
     search_repo_id = None
     if not repo.encrypted:
@@ -415,6 +426,8 @@ def view_file(request, repo_id):
             'img_prev': img_prev,
             'img_next': img_next,
             'search_repo_id': search_repo_id,
+            'tags': tags,
+            'tags_list': tags_list,
             }, context_instance=RequestContext(request))
 
 def view_history_file_common(request, repo_id, ret_dict):

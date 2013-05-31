@@ -13,7 +13,19 @@
 
 {% block main_panel %}
     <div id="view-hd">
-        <h2>{{ filename }}</h2>
+        <h2>
+          <span>{{ filename }}</span>
+          {% if has_tagging and not repo.encrypted %}
+          <span class="file-tags">
+            <span class="tags" title="{{ tags }}">
+              {% if tags %}{{ tags }}{% else %}{% trans "no tags yet..." %}{% endif %}
+            </span>
+            {% if user_perm == 'rw' %}
+            <i id="edit-tags-icon" class="icon-edit" title="{% trans "edit tags"%}"></i>
+            {% endif %}
+          </span>
+          {% endif %}
+        </h2>
     </div>
 
     <div id="view-path-op" class="w100 ovhd">
@@ -116,6 +128,30 @@
     {% with attach_type='file' %}
     {% include "snippets/group_recommend_form.html" %}
     {% endwith %}
+
+    <form id="edit-tags-form" action="{% url 'change_tags' %}?repo_id={{ repo.id }}&p={{ path|urlencode }}"
+          method="POST" class="hide">{% csrf_token %}
+      <p>{% trans "Tags(Separated by spaces or commas):" %}</p>
+      <input type="text" name="tags" value="{{ tags }}" autocomplete="off" />
+      <input type="hidden" name="repo_id" value="{{ repo.id }}" />
+      <input type="hidden" name="path" value="{{ path }}" />
+
+      <div class="used-tags">
+        <div id="my-used-tags" class="hide">
+          <span class="label">My Tags:</span>
+          <div class="tags-list my-tags-list">
+          </div>
+        </div>
+        
+        <div id="group-used-tags" class="hide">
+          <span class="label">Group Tags:</span>
+          <div class="tags-list group-tags-list">
+          </div>
+        </div>
+      </div>
+
+      <input type="submit" value="{% trans "Submit"%}" class="submit" />
+    </form>
 
 {% endblock %}
 
@@ -258,5 +294,75 @@ $('#file-op .history').click(function () {
 //bottom bar
 {% include "snippets/bottom_bar.html" %}
 $('#main-panel').css('margin-bottom',0);
+
+{% if has_tagging %}
+var my_used_tags, group_used_tags;
+var edit_tags_form_prepared = false;
+function prepare_edit_tags_form() {
+    $.ajax({
+        url: "{% url 'used_tags' %}?repo_id={{ repo.id }}",
+        cache: false,
+        success:function(data) {
+            if (data['success']) {
+                edit_tags_form_prepared = true;
+                my_used_tags = data['my_tags'];
+                group_used_tags = data['group_tags'];
+                
+                var my_tags_list = $('#edit-tags-form .my-tags-list');
+                var group_tags_list = $('#edit-tags-form .group-tags-list');
+                
+                if (my_used_tags.length > 0) {
+                    $('#my-used-tags').removeClass('hide');
+                    $.each(my_used_tags, function(i, tag) {
+                        my_tags_list.append('<span class="tag" title="' + tag + '">' + tag + '</span>');
+                    });
+                }
+
+                if (group_used_tags.length > 0) {
+                    $('#group-used-tags').removeClass('hide');
+                    $.each(group_used_tags, function(i, tag) {
+                        group_tags_list.append('<span class="tag" title="'
+                                               + tag + '">' + tag + '</span>');
+                    });
+                }
+                
+                $('#edit-tags-form .tag').click(function() {
+                    var tag = $(this).attr('title');
+                    var tags_input = $('#edit-tags-form input[type="text"]');
+                    tags_input.val(tags_input.val() + ', ' + tag);
+                });
+                
+                show_edit_tags_form();
+                
+            } else {
+                feedback("{% trans "Internal Error" %}", 'error');
+            }
+        },
+        error:function(xhr, textStatus, errorThrown) {
+            if (xhr.responseText) {
+                feedback("{% trans "Internal Error" %}", 'error');
+            } else {
+                feedback('{% trans "Failed. Please check the network." %}', 'error');
+            }
+        }
+   });
+}
+
+function show_edit_tags_form() {
+  $('#edit-tags-form').modal({appendTo: '#main', containerCss: { width: 500}});
+  $('#edit-tags-form input[type="text"]').focus().val("{{ tags }}");
+  $('#simplemodal-container').css('height', 'auto');
+}
+
+function show_or_prepare_edit_tags_form() {
+    if (edit_tags_form_prepared) {
+        show_edit_tags_form();
+    } else {
+        prepare_edit_tags_form();
+    }
+};
+      
+$('#edit-tags-icon').click(show_or_prepare_edit_tags_form);
+{% endif %}
 </script>
 {% endblock %}

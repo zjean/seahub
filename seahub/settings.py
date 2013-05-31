@@ -415,4 +415,3 @@ SEAFILE_VERSION = '1.7'
 # Put here after loading other settings files if `SITE_ROOT` is modified in
 # other settings files.
 LOGIN_URL = SITE_ROOT + 'accounts/login'
-
