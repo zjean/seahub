@@ -5,6 +5,7 @@
         {% grp_avatar group.props.id 24 %}<span class="name">{{ group.group_name }}</span>
     </div>
     <ul class="tabnav-tabs">
+        <li class="tabnav-tab {% if cur == 'dashboard'%}tabnav-tab-cur{% endif%}"><a href="{% url 'group_dashboard' group.id %}">{% trans "Dashboard" %}</a></li>
         <li class="tabnav-tab {% if cur == 'library'%}tabnav-tab-cur{% endif%}"><a href="{% url 'group_info' group.id %}">{% trans "Libraries" %}</a></li>
         
         <li class="tabnav-tab {% if cur == 'discuss'%}tabnav-tab-cur{% endif%}"><a href="{% url 'group_discuss' group.id %}">{% trans "Discussion" %}</a></li>

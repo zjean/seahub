@@ -1881,6 +1881,10 @@ textarea:-moz-placeholder {/* for FF */
     width:576px;
     margin-left:64px;
 }
+/* group dashboard */
+.dbd-repo {
+    padding-bottom:4px;
+}
 /*file upload*/
 #upload-file-form {
     margin-top:10px;

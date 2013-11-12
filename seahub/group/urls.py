@@ -6,10 +6,12 @@ from views import group_info, group_members, group_member_operations, group_add_
     group_remove_admin, group_discuss, group_wiki, group_wiki_create, \
     group_wiki_page_new, group_wiki_page_edit, group_wiki_pages, \
     group_wiki_page_delete, group_remove, group_dismiss, group_quit, \
-    group_make_public, group_revoke_public, group_transfer, group_toggle_modules
+    group_make_public, group_revoke_public, group_transfer, group_toggle_modules, \
+    group_dashboard
 
 urlpatterns = patterns('',
     url(r'^(?P<group_id>\d+)/$', group_info, name='group_info'),
+    url(r'^(?P<group_id>\d+)/dashboard/$', group_dashboard, name='group_dashboard'),
     url(r'^(?P<group_id>\d+)/discuss/$', group_discuss, name='group_discuss'),
     url(r'^(?P<group_id>\d+)/wiki/$', group_wiki, name='group_wiki'),
     url(r'^(?P<group_id>\d+)/wiki/(?P<page_name>[^/]+)/$', group_wiki, name='group_wiki'),

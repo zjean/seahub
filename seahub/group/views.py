@@ -464,9 +464,6 @@ def group_info(request, group):
     if group.view_perm == "pub":
         return group_info_for_pub(request, group)
 
-    # Get all group members.
-    members = get_group_members(group.id)
-        
     org = request.user.org
     if org:
         repos = get_org_group_repos(org['org_id'], group.id,
@@ -496,13 +493,11 @@ def group_info(request, group):
     mods_enabled = get_enabled_mods_by_group(group.id)
 
     return render_to_response("group/group_info.html", {
-            "members": members,
             "repos": repos,
             "recent_commits": recent_commits,
             "group" : group,
             "is_staff": group.is_staff,
             'create_shared_repo': True,
-            'group_members_default_display': GROUP_MEMBERS_DEFAULT_DISPLAY,
             "mods_enabled": mods_enabled,
             "mods_available": mods_available,
             }, context_instance=RequestContext(request))
@@ -1455,3 +1450,40 @@ def group_wiki_page_delete(request, group, page_name):
 
     return HttpResponseRedirect(reverse('group_wiki', args=[group.id]))
     
+@group_check
+def group_dashboard(request, group):
+    
+    group_id = group.id
+    username = request.user.username
+
+    members = get_group_members(group_id)
+    if len(members) > GROUP_MEMBERS_DEFAULT_DISPLAY:
+        members_more = True
+    else:
+        members_more = False
+    members_shown = members[:GROUP_MEMBERS_DEFAULT_DISPLAY]
+
+    repos = get_group_repos(group_id, username)
+    if len(repos) > 6:
+        repos_more = True
+    else:
+        repos_more = False
+    repos_shown = repos[:6]
+    for repo in repos_shown:
+        repo.user_perm = check_permission(repo.props.id, username)
+
+    # get available modules(wiki, etc)
+    mods_available = get_available_mods_by_group(group_id)
+    mods_enabled = get_enabled_mods_by_group(group_id)
+
+    return render_to_response("group/group_dashboard.html", {
+            "members_shown": members_shown,
+            "members_more": members_more,
+            "repos_shown": repos_shown,
+            "repos_more": repos_more,
+            "group" : group,
+            "is_staff": group.is_staff,
+            "mods_enabled": mods_enabled,
+            "mods_available": mods_available,
+            }, context_instance=RequestContext(request))
+

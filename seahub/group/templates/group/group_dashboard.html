@@ -1,0 +1,71 @@
+{% extends base_template %}
+
+{% load seahub_tags avatar_tags group_avatar_tags i18n %}
+
+{% block sub_title %}{{group.group_name}} - {% endblock %}
+{% block nav_group_class %}class="cur"{% endblock %}
+
+{% block title_panel %}
+{% include "group/tabnav.html" with cur="dashboard" %}
+{% endblock %}
+
+{% block left_panel %}
+<div class="info-item group-basic-info">
+    <h3 class="info-item-top">{% trans "Basic Info" %}{% if group.is_pub %}<span class="icon-globe" title="{% trans "This group is public." %}"></span>{% endif %}</h3>
+    <div class="info-item-bottom ovhd">
+        {% grp_avatar group.props.id 48 %}
+        <div class="txt">
+            <p>{{ group.creator_name|email2nickname }} {% trans "created at" %}<br />{{ group.timestamp|tsstr_day }}</p>
+            {% if not is_staff %}
+            <a id="quit-group" href="#" data-url="{% url 'group_quit' group.id %}">{% trans "Quit Group" %}</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="info-item">
+    <h3 class="info-item-top">{% trans "Libraries" %}</h3>
+    <ul class="info-item-bottom">
+    {% for repo in repos_shown %}
+    <li class="dbd-repo">
+    {% if repo.user_perm == 'rw' %}
+    <img src="{{MEDIA_URL}}img/sync-folder-20.png" title="{% trans "Read-Write" %}" alt="{% trans "directory icon" %}" class="vam" />
+    {% else %}
+    <img src="{{MEDIA_URL}}img/folder-no-write-20.png" title="{% trans "Read-Only" %}" alt="{% trans "directory icon" %}" class="vam" />
+    {% endif %}
+    <a href="{% url 'repo' repo.id %}" class="vam" title="{{ repo.name }}">{{ repo.name|truncatechars:14 }}</a>
+    </li>
+    {% endfor %}
+    {% if repos_more %}
+    <li>...</li>
+    {% endif %}
+    </ul>
+</div>
+
+<div class="info-item">
+    <h3 class="info-item-top">{% trans "Members" %}</h3>
+    <div class="info-item-bottom">
+        <ul>
+            {% for member in members_shown %}
+            <li class="member">{% avatar member.user_name 16 %}<a class="name" href="{% url 'user_msg_list' member.user_name|id_or_email %}">{{ member.user_name|email2nickname }}</a></li>
+            {% endfor %}
+            {% if members_more %} 
+            <li>...</li>
+            {% endif %}
+        </ul>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block right_panel %}
+{% include "snippets/events.html" %}
+{% include "group/modules_toggle_form.html" %}
+{% endblock %}
+
+{% block extra_script %}
+<script type="text/javascript">
+{% include "snippets/events_js.html" %}
+{% include "group/modules_toggle_js.html" %}
+</script>
+{% endblock %}
