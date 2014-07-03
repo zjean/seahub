@@ -570,3 +570,207 @@ class DeviceToken(models.Model):
     def __unicode__(self):
         return "/".join(self.user, self.token)
 
+class DepartmentManager(models.Manager):
+    def add_department(self, department_name):
+        """Add a department.
+
+        Arguments:
+        - `self`:
+        - `department_name`:
+        """
+        department = self.model(department_name=department_name)
+        department.save(using=self._db)
+        return department
+
+    def get_department_by_name(self, department_name):
+        """Get a department by name.
+
+        Arguments:
+        - `self`:
+        - `department_name`:
+        """
+        try:
+            department = super(DepartmentManager, self).get(
+                                department_name=department_name)
+        except Department.DoesNotExist:
+            department = None
+        return department
+
+    def get_department_by_id(self, department_id):
+        """Get a department by id.
+
+        Arguments:
+        - `self`:
+        - `department_id`:
+        """
+        try:
+            department = super(DepartmentManager, self).get(id=department_id)
+        except Department.DoesNotExist:
+            department = None
+        return department
+
+    def remove_department_by_id(self, department_id):
+        """Remove a department by id.
+
+        Arguments:
+        - `self`:
+        - `department_id`:
+        """
+        try:
+            department = super(DepartmentManager, self).get(id=department_id)
+            department.delete()
+        except Department.DoesNotExist:
+            pass
+
+class Department(models.Model):
+    department_name = models.CharField(max_length=255, db_index=True)
+    timestamp = models.DateTimeField(default=datetime.datetime.now)
+
+    objects = DepartmentManager()
+
+class DepartmentUserManager(models.Manager):
+    def add_department_user(self, department_id, user_name):
+        """Add a user to a department.
+
+        Arguments:
+        - `self`:
+        - `department_id`:
+        - `user_name`:
+        """
+        department_user = self.model(department_id=department_id,
+                                     user_name=user_name)
+        department_user.save(using=self._db)
+        return department_user
+
+    def remove_department_user(self, department_id, user_name):
+        """Delete a user of a department.
+
+        Arguments:
+        - `self`:
+        - `department_id`:
+        - `user_name`:
+        """
+        try:
+            department_user = super(DepartmentUserManager, self).filter(
+                    department_id=department_id, user_name=user_name)
+            department_user.delete()
+        except DepartmentUser.DoesNotExist:
+            pass
+
+    def get_department_user(self, department_id, user_name):
+        """Get one user of a department.
+
+        Arguments:
+        - `self`:
+        - `department_id`:
+        - `user_name`:
+        """
+        try:
+            department_user = super(DepartmentUserManager, self).get(
+                    department_id=department_id, user_name=user_name)
+        except DepartmentUser.DoesNotExist:
+            department_user = None
+        return department_user
+
+    def get_department_users(self, department_id):
+        """Get all users of a department.
+
+        Arguments:
+        - `self`:
+        - `department_id`:
+        """
+        department_users = super(DepartmentUserManager,
+                            self).filter(department_id=department_id)
+        return department_users
+
+    def count_department_users(self, department_id):
+        """Count a department's user num.
+
+        Arguments:
+        - `self`:
+        - `department_id`:
+        """
+        return super(DepartmentUserManager, self).filter(
+                    department_id=department_id).count()
+
+class DepartmentUser(models.Model):
+
+    department_id = models.IntegerField(db_index=True)
+    user_name = LowerCaseCharField(max_length=255, db_index=True)
+
+    #Only do auth work at seahub layer,
+    #"is_admin" field will not be used for now
+    is_admin = models.BooleanField(default=False)
+
+    objects = DepartmentUserManager()
+
+class DepartmentGroupManager(models.Manager):
+    def add_department_group(self, department_id, group_id):
+        """Add a group to a department.
+
+        Arguments:
+        - `self`:
+        - `department_id`:
+        - `group_id`:
+        """
+        department_grp = self.model(department_id=department_id,
+                                     group_id=group_id)
+        department_grp.save(using=self._db)
+        return department_grp
+
+    def remove_department_group(self, department_id, group_id):
+        """Delete a group of a department.
+
+        Arguments:
+        - `self`:
+        - `department_id`:
+        - `group_id`:
+        """
+        try:
+            department_grp = super(DepartmentGroupManager, self).filter(
+                    department_id=department_id, group_id=group_id)
+            department_grp.delete()
+        except DepartmentGroup.DoesNotExist:
+            pass
+
+    def get_department_group(self, department_id, group_id):
+        """Get one group of a department.
+
+        Arguments:
+        - `self`:
+        - `department_id`:
+        - `group_id`:
+        """
+        try:
+            department_grp = super(DepartmentGroupManager, self).get(
+                    department_id=department_id, group_id=group_id)
+        except DepartmentGroup.DoesNotExist:
+            department_grp = None
+        return department_grp
+
+    def count_department_groups(self, department_id):
+        """Count a department's group num.
+
+        Arguments:
+        - `self`:
+        - `department_id`:
+        """
+        return super(DepartmentGroupManager, self).filter(
+                    department_id=department_id).count()
+
+    def get_department_groups(self, department_id):
+        """Get all departments(id) of a department.
+
+        Arguments:
+        - `self`:
+        - `department_id`:
+        """
+        department_grps = super(DepartmentGroupManager,
+                            self).filter(department_id=department_id)
+        return department_grps
+
+class DepartmentGroup(models.Model):
+    department_id = models.IntegerField(db_index=True)
+    group_id = models.IntegerField(db_index=True)
+
+    objects = DepartmentGroupManager()

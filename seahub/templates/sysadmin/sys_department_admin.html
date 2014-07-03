@@ -1,0 +1,96 @@
+{% extends "sysadmin/base.html" %}
+{% load seahub_tags i18n %}
+
+{% block cur_departments %}tab-cur{% endblock %}
+
+{% block right_panel %}
+<div class="ovhd hd">
+    <h3 class="fleft">{% trans "All Departments"%}</h3>
+    <button id="add-department-btn" class="fright"><img src="{{ MEDIA_URL }}img/add.png" alt="" class="add vam" /><span class="vam">{% trans "Add department"%}</span></button>
+</div>
+
+{% if departments %}
+<table>
+    <tr>
+        <th width="50%">{% trans "Name" %}</th>
+        <th width="35%">{% trans "Create At" %}</th>
+        <th width="15%">{% trans "Operations" %}</th>
+    </tr>
+    {% for dpment in departments %}
+    <tr>
+        <td><a href="{% url 'department_info' dpment.id %}">{{ dpment.department_name }}</a></td>
+        <td>{{ dpment.timestamp|translate_seahub_time }}</td>
+        <td><a href="#" data-url="{% url 'sys_department_remove' dpment.id %}" data-target="{{ dpment.department_name }}" class="department-del-btn op vh">{% trans "Delete" %}</a></td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% include "snippets/admin_paginator.html" %}
+
+{% else %}
+<div class="empty-tips">
+    <h2 class="alc">{% trans "No one has created any departments yet" %}</h2>
+    <p> {% blocktrans %}You can click "Add department" button to create a department. {% endblocktrans %}</p>
+</div>
+{% endif %}
+
+<form id="add-department-form" action="" method="post" name="add-department-form" class="hide">{% csrf_token %}
+    <h3>{% trans "New Department" %}</h3>
+    <label>{% trans "Department Name" %}</label><br />
+    <input id="department_name" name="department_name" value="" class="input" /><br />
+    <p class="error hide"></p>
+    <input id="add-department-submit" type="submit" class="submit" value="{% trans "Submit" %}" />
+</form>
+{% endblock %}
+
+{% block extra_script %}
+<script type="text/javascript">
+
+addConfirmTo($('.department-del-btn'), {
+    'title': "{% trans "Delete Department" %}",
+    'con': "{% trans "Are you sure you want to delete %s ?" %}"
+});
+
+$("#add-department-btn").click(function() {
+    $("#add-department-form").modal({appendTo: "#main"});
+});
+
+$('#add-department-form').submit(function() {
+    if (!$.trim($('#department_name').val())) {
+        apply_form_error('add-department-form', "{% trans "Department name can't be empty" %}");
+        return false;
+    }
+
+    var submit_btn = $(this).children('input[type="submit"]');
+    disable(submit_btn);
+    $.ajax({
+        url: '{% url 'sys_department_add' %}',
+        type: 'POST',
+        dataType: 'json',
+        cache: 'false',
+        beforeSend: prepareCSRFToken,
+        data: {
+            'department_name': $('#department_name').val()
+        },
+
+        success: function(data) {
+            if (data['success']) {
+                location.reload(true);
+            }
+        },
+        error: function(data, textStatus, jqXHR) {
+            var errors = $.parseJSON(data.responseText);
+            $.each(errors, function(index, value) {
+                if (index == 'error') {
+                    apply_form_error('add-department-form', value);
+                    enable(submit_btn);
+                } else {
+                    location.reload(true);
+                }
+            });
+        }
+    });
+    return false;
+});
+</script>
+{% endblock %}

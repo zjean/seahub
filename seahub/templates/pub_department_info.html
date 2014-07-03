@@ -1,0 +1,77 @@
+{% extends "pub_base.html" %}
+{% load i18n seahub_tags avatar_tags group_avatar_tags %}
+{% load url from future %}
+
+{% block left_panel %}
+<div class="side-info">
+    <a class="go-back" title="{% trans "Back to department list" %}"  href="{% url 'pub_departments' %}"><span class="icon-chevron-left"></span></a>
+    <h3 class="hd">{{ department.department_name }}</h3>
+    <dl>
+        <dt>{% trans "User" %} : {{ user_count }}</dt>
+        <dt>{% trans "Group" %} : {{ grp_count }}</dt>
+    </dl>
+</div>
+{% endblock %}
+
+{% block right_panel %}
+<div id="tabs" class="tab-tabs">
+    <div class="hd ovhd">
+        <ul class="tab-tabs-nav fleft">
+            <li class="tab"><a href="#users" class="a" id="users-tab">{% trans "Users" %}</a></li>
+            <li class="tab"><a href="#groups" class="a" id="groups-tab">{% trans "Groups" %}</a></li>
+        </ul>
+    </div>
+
+    <div id="users">
+    {% if dpment_users%}
+        <ul class="user-list">
+            {% for dpment_user in dpment_users %}
+            {% with e=dpment_user.user_name id=dpment_user.user_name|id_or_email %}
+            <li class="user ovhd">
+            <a href="{% url 'user_profile' id %}" class="pic fleft">{% avatar e 48 %}</a>
+            <div class="txt fright">
+                <a class="name" href="{% url 'user_profile' id %}">{{ e|email2nickname }}</a>
+                <p>{{ e }}</p>
+                {% if dpment_user.can_be_contact %}
+                <button class="add-to-contacts" data-email="{{e}}">{% trans "Add to Contacts" %}</button>
+                {% endif %}
+            </div>
+            </li>
+            {% endwith %}
+            {% endfor %}
+        </ul>
+    {% else %}
+    <div class="empty-tips">
+        <h2 class="alc">{% trans "No user has been added to this department yet" %}</h2>
+    </div>
+    {% endif %}
+    </div>
+
+    <div id="groups">
+   {% if dpment_grps%}
+        <ul class="group-list">
+            {% for dpment_grp in dpment_grps %}
+            <li class="group ovhd">
+            <a href="{{ SITE_ROOT }}group/{{ dpment_grp.group_id }}/" class="no-deco pic fleft">{% grp_avatar dpment_grp.group_id 48 %}</a>
+            <div class="txt fright">
+                <h4><a href="{{ SITE_ROOT }}group/{{ dpment_grp.group_id }}/">{{ dpment_grp.group_name }}</a></h4>
+                <p><span class="item-name">{% trans "Creator: "%}</span>{{ dpment_grp.creator_name }}</p>
+                <p><span class="item-name">{% trans "Time: "%}</span>{{ dpment_grp.timestamp|tsstr_sec }}</p>
+            </div>
+            </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+    <div class="empty-tips">
+        <h2 class="alc">{% trans "No group has been added to this department yet" %}</h2>
+    </div>
+    {% endif %}
+    </div>
+</div>
+
+{% include 'snippets/add_to_contacts_form.html' %}
+{% endblock %}
+
+{% block extra_script %}
+{% include 'snippets/add_to_contacts_js.html' %}
+{% endblock %}

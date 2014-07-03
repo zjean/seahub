@@ -1,0 +1,27 @@
+{% extends "pub_base.html" %}
+{% load seahub_tags group_avatar_tags i18n %}
+{% load url from future %}
+
+{% block cur_dpment %}tab-cur{% endblock %}
+
+{% block right_panel %}
+<h3 class="hd">{% trans "Departments" %}</h3>
+{% if departments %}
+<ul class="group-list">
+    {% for dpment in departments %}
+    <li class="group vhd">
+    <a href="{% url 'pub_department_info' dpment.id %}" class="no-deco pic fleft">{% grp_avatar default 48 %}</a>
+    <div class="txt fright">
+        <h4><a href="{% url 'pub_department_info' dpment.id %}">{{ dpment.department_name }}</a></h4>
+        <p><span class="item-name">{% trans "User: "%}</span>{{ dpment.user_count }}</p>
+        <p><span class="item-name">{% trans "Group: "%}</span>{{ dpment.grp_count }}</p>
+    </div>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<div class="empty-tips">
+    <h2 class="alc">{% trans "No departments have been created yet" %}</h2>
+</div>
+{% endif %}
+{% endblock %}

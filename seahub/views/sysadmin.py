@@ -10,17 +10,20 @@ import csv, chardet, StringIO
 
 from django.core.urlresolvers import reverse
 from django.contrib import messages
-from django.http import HttpResponse, Http404, HttpResponseRedirect
+from django.http import HttpResponse, Http404, HttpResponseRedirect, \
+        HttpResponseBadRequest
 from django.shortcuts import render_to_response
 from django.template import RequestContext
 from django.utils.translation import ugettext as _
 
 from seaserv import ccnet_threaded_rpc, seafserv_threaded_rpc, get_emailusers, \
     CALC_SHARE_USAGE, seafile_api
+import seaserv
 from pysearpc import SearpcError
 
 from seahub.base.accounts import User
-from seahub.base.models import UserLastLogin
+from seahub.base.models import UserLastLogin, Department, DepartmentUser, \
+        DepartmentGroup
 from seahub.base.decorators import sys_staff_required
 from seahub.auth.decorators import login_required, login_required_ajax
 from seahub.utils import IS_EMAIL_CONFIGURED, string2list, is_valid_username
@@ -893,4 +896,299 @@ def batch_add_user(request):
         messages.error(request, _(u'Please select a csv file first.'))
 
     next = request.META.get('HTTP_REFERER', reverse(sys_user_admin))
+    return HttpResponseRedirect(next)
+
+@login_required
+@sys_staff_required
+def sys_department_admin(request):
+    try:
+        current_page = int(request.GET.get('page', '1'))
+        per_page = int(request.GET.get('per_page', '25'))
+    except ValueError:
+        current_page = 1
+        per_page = 25
+
+    offset = per_page * (current_page -1)
+    limit = per_page + 1
+    departments = Department.objects.all()[offset:offset+limit]
+
+    if len(departments) == per_page + 1:
+        page_next = True
+    else:
+        page_next = False
+
+    return render_to_response('sysadmin/sys_department_admin.html', {
+            'departments': departments,
+            'current_page': current_page,
+            'prev_page': current_page-1,
+            'next_page': current_page+1,
+            'per_page': per_page,
+            'page_next': page_next,
+            }, context_instance=RequestContext(request))
+
+@login_required_ajax
+@sys_staff_required
+def sys_department_add(request):
+    """
+    Add a department.
+    Only system admin can perform this operation.
+    """
+    if request.method != 'POST':
+        raise Http404
+
+    result = {}
+    content_type = 'application/json; charset=utf-8'
+
+    department_name = request.POST.get('department_name')
+
+    if Department.objects.get_department_by_name(department_name) is not None:
+        result['error'] = _(u'There is already a department with that name.')
+        return HttpResponse(json.dumps(result), status=400,
+                            content_type=content_type)
+
+    try:
+        Department.objects.add_department(department_name)
+        result['success'] = True
+        messages.success(request, _(u"Successfully created department."))
+        return HttpResponse(json.dumps(result), content_type=content_type)
+    except Exception as e:
+        logger.error(e)
+        messages.error(request, _(u"Failed to create department."))
+        result['success'] = False
+        return HttpResponse(json.dumps(result), status=500,
+                            content_type=content_type)
+
+@login_required
+@sys_staff_required
+def sys_department_remove(request, department_id):
+    """
+    Remove a department.
+    Only system admin can perform this operation.
+    """
+    try:
+        Department.objects.remove_department_by_id(department_id)
+        messages.success(request, _(u"Successfully remove department."))
+    except Exception as e:
+        logger.error(e)
+        messages.error(request, _(u"Failed to remove departmen."))
+
+    referer = request.META.get('HTTP_REFERER', None)
+    next = reverse('sys_department_admin') if referer is None else referer
+    return HttpResponseRedirect(next)
+
+@login_required
+@sys_staff_required
+def department_info(request, department_id):
+    """
+    Show base information of a department.
+    """
+    #users and groups in department
+    department = Department.objects. \
+            get_department_by_id(department_id)
+    dpment_users = DepartmentUser.objects. \
+            get_department_users(department_id)
+    dpment_grps = DepartmentGroup.objects. \
+            get_department_groups(department_id)
+    user_count = DepartmentUser.objects. \
+            count_department_users(department_id)
+    grp_count = DepartmentGroup.objects. \
+            count_department_groups(department_id)
+
+    for dpment_grp in dpment_grps:
+        group = seaserv.get_group(dpment_grp.group_id)
+        if not group:
+            dpment_grp.delete()
+            continue
+        dpment_grp.group_name = group.group_name
+
+    #users and groups NOT in department
+    #for add into department
+    DB_users = get_emailusers('DB', -1, -1)
+    LDAP_users = get_emailusers('LDAP', -1, -1)
+    not_dpment_users = []
+    all_users = []
+
+    for DB_user in DB_users:
+        all_users.append(DB_user)
+    for LDAP_user in LDAP_users:
+        all_users.append(LDAP_user)
+
+    for user in all_users:
+        if user.id == request.user.id:
+            continue
+        elif DepartmentUser.objects.get_department_user \
+                    (department_id, user.email) is not None:
+            continue
+        else:
+            not_dpment_users.append(user.email)
+
+    all_groups = ccnet_threaded_rpc.get_all_groups(-1, -1)
+    not_dpment_grps = []
+
+    for group in all_groups:
+        if DepartmentGroup.objects.get_department_group \
+                    (department_id, group.id) is not None:
+            continue
+        else:
+            not_dpment_grps.append(group)
+
+    return render_to_response('sysadmin/department_info.html', {
+            'department': department,
+            'dpment_users': dpment_users,
+            'dpment_grps': dpment_grps,
+            'user_count': user_count,
+            'grp_count': grp_count,
+            'not_dpment_users': not_dpment_users,
+            'not_dpment_grps': not_dpment_grps,
+            }, context_instance=RequestContext(request))
+
+@login_required_ajax
+@sys_staff_required
+def department_user_add(request, department_id):
+    """
+    Add user(s) to a department.
+    """
+    if request.method != 'POST':
+        raise Http404
+
+    result = {}
+    content_type = 'application/json; charset=utf-8'
+
+    if Department.objects.get_department_by_id(
+                                department_id) is None:
+
+        referer = request.META.get('HTTP_REFERER', None)
+        next = reverse('department_info') if referer is None else referer
+        messages.error(request, _(u"Department does not exist."))
+        return HttpResponseRedirect(next)
+
+    user_names_str = request.POST.get('added_users', '')
+    user_names = string2list(user_names_str)
+    user_names = [x.lower() for x in user_names]
+
+    success = []
+    exist = []
+    fail = []
+
+    for user_name in user_names:
+        if not is_valid_username(user_name):
+            fail.append(user_name)
+            continue
+        elif DepartmentUser.objects.get_department_user(department_id,
+                user_name) is not None:
+            exist.append(user_name)
+            continue
+        else:
+            try:
+                DepartmentUser.objects. \
+                        add_department_user(department_id, user_name)
+                success.append(user_name)
+            except Exception as e:
+                logger.error(e)
+
+    for item in success:
+        messages.success(request, _(u'Successfully add %s to department.') % item)
+    for item in exist:
+        messages.info(request, _(u'%s already in department.') % item)
+    for item in fail:
+        messages.error(request, _(u'Failed to add %s to department.') % item)
+
+    result['success'] = True
+    return HttpResponse(json.dumps(result), content_type=content_type)
+
+@login_required
+@sys_staff_required
+def department_user_remove(request, department_id, user_name):
+    """
+    Remove a user from a department.
+    """
+
+    try:
+        DepartmentUser.objects.remove_department_user(department_id, user_name)
+        messages.success(request, _(u"Successful remove %s.") % user_name)
+    except Exception as e:
+        logger.error(e)
+        messages.error(request, _(u"Failed to remove %s.") % user_name)
+
+    next_url = reverse('department_info', args=[department_id])
+    next = request.META.get('HTTP_REFERER', next_url)
+    return HttpResponseRedirect(next)
+
+@login_required_ajax
+@sys_staff_required
+def department_grp_add(request, department_id):
+    """
+    Add group(s) to a department.
+    """
+    if request.method != 'POST':
+        raise Http404
+
+    if Department.objects.get_department_by_id(
+                                department_id) is None:
+
+        referer = request.META.get('HTTP_REFERER', None)
+        next = reverse('department_info') if referer is None else referer
+        messages.error(request, _(u"Department does not exist."))
+        return HttpResponseRedirect(next)
+
+    from seahub.group.utils import get_group_dict
+    group_dict = get_group_dict()
+
+    if group_dict is None:
+        referer = request.META.get('HTTP_REFERER', None)
+        next = reverse('department_info') if referer is None else referer
+        messages.error(request, _(u"No Group was created, please create group first."))
+        return HttpResponseRedirect(next)
+
+    result = {}
+    content_type = 'application/json; charset=utf-8'
+
+    group_names_str = request.POST.get('added_grps', '')
+    group_names = string2list(group_names_str)
+
+    success = []
+    exist = []
+    fail = []
+
+    for group_name in group_names:
+        if group_name in group_dict:
+            group_id = group_dict[group_name]
+            if DepartmentGroup.objects.get_department_group(
+                            department_id, group_id) is not None:
+                exist.append(group_name)
+                continue
+            else:
+                try:
+                    DepartmentGroup.objects. \
+                            add_department_group(department_id, group_id)
+                    success.append(group_name)
+                except Exception as e:
+                    logger.error(e)
+        else:
+            fail.append(group_name)
+            continue
+
+    for item in success + exist:
+        messages.success(request, _(u'Successfully add %s to department.') % item)
+    for item in fail:
+        messages.error(request, _(u'Failed to add %s to department.') % item)
+
+    result['success'] = True
+    return HttpResponse(json.dumps(result), content_type=content_type)
+
+@login_required
+@sys_staff_required
+def department_grp_remove(request, department_id, group_id):
+    """
+    Remove a group from a department.
+    """
+    try:
+        DepartmentGroup.objects.remove_department_group(department_id, group_id)
+        messages.success(request, _(u"Successful remove group."))
+    except Exception as e:
+        logger.error(e)
+        messages.error(request, _(u"Failed to remove group."))
+
+    next_url = reverse('department_info', args=[department_id])
+    next = request.META.get('HTTP_REFERER', next_url)
     return HttpResponseRedirect(next)

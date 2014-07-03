@@ -1,0 +1,279 @@
+{% extends "admin_base.html" %}
+{% load i18n avatar_tags group_avatar_tags %}
+{% load url from future %}
+
+{% block left_panel %}
+<div class="side-info">
+    <a class="go-back" title="{% trans "Back to department list" %}"  href="{% url 'sys_department_admin' %}"><span class="icon-chevron-left"></span></a>
+    <h3 class="hd">{{ department.department_name }}</h3>
+    <dl>
+        <dt>{% trans "User" %} : {{ user_count }}</dt>
+        <dt>{% trans "Group" %} : {{ grp_count }}</dt>
+    </dl>
+</div>
+{% endblock %}
+
+{% block right_panel %}
+<div id="tabs" class="tab-tabs">
+    <div class="hd ovhd">
+        <ul class="tab-tabs-nav fleft">
+            <li class="tab"><a href="#users" class="a" id="users-tab">{% trans "Users" %}</a></li>
+            <li class="tab"><a href="#groups" class="a" id="groups-tab">{% trans "Groups" %}</a></li>
+        </ul>
+        <div class="fright">
+            <button id="add-dpment-user-btn" class="hide"><img src="{{ MEDIA_URL }}img/add.png" alt="" class="add vam" /><span class="vam">{% trans "Add user" %}</span></button>
+            <button id="add-dpment-grp-btn" class="hide"><img src="{{ MEDIA_URL }}img/add.png" alt="" class="add vam" /><span class="vam">{% trans "Add group" %}</span></button>
+        </div>
+    </div>
+
+    <div id="users">
+    {% if dpment_users%}
+        <table>
+            <tr>
+                <th width="4%"></th>
+                <th width="71%">{% trans "Name" %}</th>
+                <th width="25%">{% trans "Operations" %}</th>
+            </tr>
+            {% for dpment_user in dpment_users %}
+            <tr>
+                <td>{% avatar dpment_user.user_name 20 %}</td>
+                <td><a href="{% url 'user_profile' dpment_user.user_name %}">{{dpment_user.user_name}}</a></td>
+                <td><a href="#" data-url="{{ SITE_ROOT }}department/{{ dpment_user.department_id }}/user/{{ dpment_user.user_name }}/remove/" data-target="{{ dpment_user.user_name }}" class="dpment-user-remove-btn op vh">{% trans "Delete" %}</a></td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+    <div class="empty-tips">
+        <h2 class="alc">{% trans "No user has been added to this department yet" %}</h2>
+        <p> {% blocktrans %}You can click "Add user" button to add a user. {% endblocktrans %}</p>
+    </div>
+    {% endif %}
+    </div>
+
+    <div id="groups">
+   {% if dpment_grps%}
+        <table>
+            <tr>
+                <th width="4%"></th>
+                <th width="71%">{% trans "Name" %}</th>
+                <th width="25%">{% trans "Operations" %}</th>
+            </tr>
+            {% for dpment_grp in dpment_grps %}
+            <tr>
+                <td>{% grp_avatar dpment_grp.group_id 20 %}</td>
+                <td><a href="{{ SITE_ROOT }}group/{{ dpment_grp.group_id }}/">{{dpment_grp.group_name}}</a></td>
+                <td><a href="#" data-url="{{ SITE_ROOT }}department/{{ dpment_grp.department_id }}/grp/{{ dpment_grp.group_id }}/remove/" data-target="{{ dpment_grp.group_name }}" class="dpment-grp-remove-btn op vh">{% trans "Delete" %}</a></td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+    <div class="empty-tips">
+        <h2 class="alc">{% trans "No group has been added to this department yet" %}</h2>
+        <p> {% blocktrans %}You can click "Add group" button to add a group. {% endblocktrans %}</p>
+    </div>
+    {% endif %}
+    </div>
+</div>
+
+<form id="add-dpment-user-form"  method="post" name="add-dpment-user-form" class="tab-popup hide">{% csrf_token %}
+    <h3 class="hd">{% trans "Add users"%}</h3>
+    <div id="user-add-tabs" class="tab-popup-tabs">
+        <ul class="tab-popup-tabs-nav">
+            <li class="tab"><a href="#user-enter" class="a">{% trans 'Enter' %}</a></li>
+            <li class="tab"><a href="#user-options" class="a">{% trans 'Select' %}</a></li>
+        </ul>
+        <div id="user-enter">
+            <textarea id="added-user-name" name="user_name" placeholder="{% trans "emails, separated by ','" %}"></textarea><br />
+            {% if cloud_mode and not org %}
+            <p class="tip">{% trans "Tip: an invitation will be sent if the email is not registered."%}</p>
+            {% else %}
+            <p class="tip">{% trans "Tip: the emails should be already registered."%}</p>
+            {% endif %}
+        </div>
+        <div id="user-options" class="hide">
+            <ul class="option-list">
+            {% for user_name in not_dpment_users %}
+            <li>
+            <label class="checkbox-label">
+                <span class="checkbox"><input type="checkbox" name="user" value="{{ user_name }}" class="checkbox-orig" /></span> {% avatar user_name 20 %} <span class="checkbox-option">{{ user_name }}</span>
+            </label>
+            </li>
+            {% endfor %}
+        </ul>
+        </div>
+    </div>
+    <div class="bot">
+        <p class="error hide"></p>
+        <input type="submit" value="{% trans "Submit"%}" />
+    </div>
+</form>
+<form id="add-dpment-grp-form"  method="post" name="add-dpment-grp-form" class="tab-popup hide">{% csrf_token %}
+    <h3 class="hd">{% trans "Add groups"%}</h3>
+    <div id="grp-add-tabs" class="tab-popup-tabs">
+        <ul class="tab-popup-tabs-nav">
+            <li class="tab"><a href="#grp-enter" class="a">{% trans 'Enter' %}</a></li>
+            <li class="tab"><a href="#grp-options" class="a">{% trans 'Select' %}</a></li>
+        </ul>
+        <div id="grp-enter">
+            <textarea id="added-grp-name" name="grp_name" placeholder="{% trans "group names, separated by ','" %}"></textarea><br />
+            <p class="tip">{% trans "Tip: the group should be already created."%}</p>
+        </div>
+        <div id="grp-options" class="hide">
+            <ul class="option-list">
+            {% for grp in not_dpment_grps %}
+            <li>
+            <label class="checkbox-label">
+                <span class="checkbox"><input type="checkbox" name="group" value="{{ grp.group_name }}" class="checkbox-orig" /></span> {% grp_avatar grp.id 20 %} <span class="checkbox-option">{{ grp.group_name }}</span>
+            </label>
+            </li>
+            {% endfor %}
+        </ul>
+        </div>
+    </div>
+    <div class="bot">
+        <p class="error hide"></p>
+        <input type="submit" value="{% trans "Submit"%}" />
+    </div>
+</form>
+
+{% endblock %}
+
+{% block extra_script %}
+<script type="text/javascript">
+
+var cur_tab = $('.ui-tabs-selected .a');
+var add_dpment_user_btn = $('#add-dpment-user-btn'),
+    add_dpment_grp_btn = $('#add-dpment-grp-btn');
+
+if (cur_tab.attr('id') == 'users-tab') {
+    add_dpment_user_btn.removeClass('hide');
+}
+if (cur_tab.attr('id') == 'groups-tab') {
+    add_dpment_grp_btn.removeClass('hide');
+}
+
+$('#users-tab').click(function() {
+    add_dpment_user_btn.removeClass('hide');
+    add_dpment_grp_btn.addClass('hide');
+});
+$('#groups-tab').click(function() {
+    add_dpment_user_btn.addClass('hide');
+    add_dpment_grp_btn.removeClass('hide');
+});
+
+addConfirmTo($('.dpment-user-remove-btn'), {
+    'title': "{% trans "Remove User" %}",
+    'con': "{% trans "Are you sure you want to remove %s ?" %}"
+});
+addConfirmTo($('.dpment-grp-remove-btn'), {
+    'title': "{% trans "Remove Group" %}",
+    'con': "{% trans "Are you sure you want to remove %s ?" %}"
+});
+
+var user_list = [], user_name;
+{% for username in not_dpment_users %}
+user_name = '{{ username }}';
+user_list.push({value:user_name, label:user_name});
+{% endfor %}
+
+var grp_list = [], grp_name;
+{% for grp in not_dpment_grps %}
+grp_name = '{{ grp.group_name }}';
+grp_list.push({value:grp_name, label:grp_name});
+{% endfor %}
+
+$("#add-dpment-user-btn, #add-dpment-grp-btn").click(function() {
+    var id = $(this).attr('id');
+    if (id.indexOf('user') != -1) {
+        var form = $("#add-dpment-user-form");
+        $('#user-add-tabs').tabs();
+        addAutocomplete('#added-user-name', '#user-enter', user_list);
+        $('#added-user-name').css({"width":"98.5%", "height":"80px", "padding":"2px"});
+    } else {
+        var form = $("#add-dpment-grp-form");
+        $('#grp-add-tabs').tabs();
+        addAutocomplete('#added-grp-name', '#grp-enter', grp_list);
+        $('#added-grp-name').css({"width":"98.5%", "height":"80px", "padding":"2px"});
+    }
+    form.modal({appendTo: "#main", focus:false});
+    $('#simplemodal-container').css({'height':'auto', 'padding':0});
+});
+
+$('#add-dpment-user-form').submit(function() {
+    var form = $(this),
+        cur_tab_id = $('.ui-tabs-selected a', form).attr('href'),
+        post_data = '',
+        input = $('[name="user_name"]', form);
+        switch(cur_tab_id) {
+            case '#user-enter':
+                post_data = input.val();
+                break;
+            case '#user-options':
+                $(cur_tab_id + ' .checkbox-checked .checkbox-orig').each(function() {
+                    post_data += $(this).val() + ',';
+                });
+                input.val(post_data);
+        }
+        if (!post_data) {
+            apply_form_error(form.attr('id'), "{% trans "Please enter emails, or select some." %}");
+            return false;
+        }
+
+    var submit_btn = $('[type="submit"]', form);
+    disable(submit_btn);
+    $.ajax({
+        url: '{% url 'department_user_add' department.id %}',
+        type: 'POST',
+        dataType: 'json',
+        cache: false,
+        beforeSend: prepareCSRFToken,
+        data: {
+            'added_users': post_data
+        },
+        success: function(data) {
+            location.reload(true);
+        }
+    });
+    return false;
+});
+
+$('#add-dpment-grp-form').submit(function() {
+    var form = $(this),
+        cur_tab_id = $('.ui-tabs-selected a', form).attr('href'),
+        post_data = '',
+        input = $('[name="grp_name"]', form);
+
+    switch(cur_tab_id) {
+        case '#grp-enter':
+            post_data = input.val();
+            break;
+        case '#grp-options':
+            $(cur_tab_id + ' .checkbox-checked .checkbox-orig').each(function() {
+                post_data += $(this).val() + ',';
+            });
+            input.val(post_data);
+    }
+    if (!post_data) {
+        apply_form_error(form.attr('id'), "{% trans "Please enter group names, or select some." %}");
+        return false;
+    }
+
+    var submit_btn = $('[type="submit"]', form);
+    disable(submit_btn);
+    $.ajax({
+        url: '{% url 'department_grp_add' department.id %}',
+        type: 'POST',
+        dataType: 'json',
+        cache: false,
+        beforeSend: prepareCSRFToken,
+        data: {
+            'added_grps': post_data
+        },
+        success: function(data) {
+            location.reload(true);
+        }
+    });
+    return false;
+});
+</script>
+{% endblock %}

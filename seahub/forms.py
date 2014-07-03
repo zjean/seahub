@@ -24,7 +24,7 @@ class AddUserForm(forms.Form):
         email = self.cleaned_data['email']
         try:
             user = User.objects.get(email=email)
-            raise forms.ValidationError(_("A user with this email already"))
+            raise forms.ValidationError(_("A user with this email already exist"))
         except User.DoesNotExist:
             return self.cleaned_data['email']            
 

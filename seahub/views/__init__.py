@@ -37,7 +37,8 @@ from seahub.auth import login as auth_login
 from seahub.auth import get_backends
 from seahub.base.accounts import User
 from seahub.base.decorators import user_mods_check
-from seahub.base.models import UserStarredFiles, DirFilesLastModifiedInfo
+from seahub.base.models import UserStarredFiles, DirFilesLastModifiedInfo, \
+        Department, DepartmentUser, DepartmentGroup
 from seahub.contacts.models import Contact
 from seahub.options.models import UserOptions, CryptoOptionNotSetError
 from seahub.profile.models import Profile
@@ -1554,6 +1555,67 @@ def pubrepo(request):
                 }, context_instance=RequestContext(request))
 
     raise Http404
+
+@login_required
+def pub_departments(request):
+    """
+    Show department.
+    """
+    departments = Department.objects.all()
+    for department in departments:
+        department.user_count = DepartmentUser. \
+                        objects.count_department_users(department.id)
+        department.grp_count = DepartmentGroup. \
+                        objects.count_department_groups(department.id)
+
+    return render_to_response('pub_departments.html', {
+            'departments': departments,
+            }, context_instance=RequestContext(request))
+
+@login_required
+def pub_department_info(request, department_id):
+    """
+    Show base information of a department.
+    """
+    #users and groups in department
+    department = Department.objects. \
+            get_department_by_id(department_id)
+    dpment_users = DepartmentUser.objects. \
+            get_department_users(department_id)
+    dpment_grps = DepartmentGroup.objects. \
+            get_department_groups(department_id)
+    user_count = DepartmentUser.objects. \
+            count_department_users(department_id)
+    grp_count = DepartmentGroup.objects. \
+            count_department_groups(department_id)
+
+    username = request.user.username
+    contacts = Contact.objects.get_contacts_by_user(username)
+    contact_emails = []
+    for c in contacts:
+        contact_emails.append(c.contact_email)
+    for u in dpment_users:
+        if u.user_name == username or u.user_name in contact_emails:
+            u.can_be_contact = False
+        else:
+            u.can_be_contact = True
+
+    for dpment_grp in dpment_grps:
+        group = seaserv.get_group(dpment_grp.group_id)
+        if not group:
+            dpment_grp.delete()
+            continue
+        dpment_grp.group_name = group.group_name
+        dpment_grp.creator_name = group.creator_name
+        dpment_grp.timestamp = group.timestamp
+
+    return render_to_response('pub_department_info.html', {
+            'department': department,
+            'dpment_users': dpment_users,
+            'dpment_grps': dpment_grps,
+            'user_count': user_count,
+            'grp_count': grp_count,
+            }, context_instance=RequestContext(request))
 
 @login_required
 def pubgrp(request):
