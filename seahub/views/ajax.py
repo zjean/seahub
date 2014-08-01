@@ -10,6 +10,7 @@ from django.template import RequestContext
 from django.template.loader import render_to_string
 from django.utils.http import urlquote
 from django.utils.translation import ugettext as _
+from django.template.defaultfilters import filesizeformat
 
 import seaserv
 from seaserv import seafile_api, seafserv_rpc, is_passwd_set, \
@@ -41,6 +42,7 @@ from seahub.utils import check_filename_with_rename, EMPTY_SHA1, \
     get_repo_last_modify, gen_file_upload_url, is_org_context, \
     get_org_user_events, get_user_events
 from seahub.utils.star import star_file, unstar_file
+from seahub.base.templatetags.seahub_tags import translate_seahub_time, file_icon_filter
 
 # Get an instance of a logger
 logger = logging.getLogger(__name__)
@@ -357,6 +359,96 @@ def list_dir_more(request, repo_id):
     html = render_to_string('snippets/repo_dirents.html', ctx,
                             context_instance=RequestContext(request))
     return HttpResponse(json.dumps({'html': html, 'dirent_more': dirent_more, 'more_start': more_start}),
+                        content_type=content_type)
+
+@login_required_ajax        
+def get_lib_dirents(request, repo_id):
+    '''
+        get lib dirents in json
+    '''
+    content_type = 'application/json; charset=utf-8'
+
+    repo = get_repo(repo_id)
+    if not repo:
+        err_msg = _(u'Library does not exist.')
+        return HttpResponse(json.dumps({'error': err_msg}),
+                            status=400, content_type=content_type)
+
+    username = request.user.username
+    user_perm = check_repo_access_permission(repo.id, request.user)
+    if user_perm is None:
+        err_msg = _(u'Permission denied.')
+        return HttpResponse(json.dumps({'error': err_msg}),
+                            status=403, content_type=content_type)
+
+    sub_lib_enabled = UserOptions.objects.is_sub_lib_enabled(username)
+
+    try:
+        server_crypto = UserOptions.objects.is_server_crypto(username)
+    except CryptoOptionNotSetError:
+        # Assume server_crypto is ``False`` if this option is not set.
+        server_crypto = False
+
+    if repo.encrypted and \
+            (repo.enc_version == 1 or (repo.enc_version == 2 and server_crypto)) \
+            and not seafile_api.is_password_set(repo.id, username):
+        err_msg = _(u'Library is encrypted.')
+        return HttpResponse(json.dumps({'error': err_msg}),
+                            status=403, content_type=content_type)
+
+    head_commit = get_commit(repo.id, repo.version, repo.head_cmmt_id)
+    if not head_commit:
+        err_msg = _(u'Error: no head commit id')
+        return HttpResponse(json.dumps({'error': err_msg}),
+                            status=500, content_type=content_type)
+
+    if new_merge_with_no_conflict(head_commit):
+        info_commit = get_commit_before_new_merge(head_commit)
+    else:
+        info_commit = head_commit
+
+    path = request.GET.get('p', '/')
+    if path[-1] != '/':
+        path = path + '/'
+
+    more_start = None
+    file_list, dir_list, dirent_more = get_repo_dirents(request, repo, head_commit, path, offset=0, limit=100)
+    if dirent_more:
+        more_start = 100
+
+    dirent_list = []
+    for d in dir_list:
+        d_ = {}
+        d_['is_dir'] = True
+        d_['obj_name'] = d.obj_name
+        d_['last_modified'] = d.last_modified
+        d_['last_update'] = translate_seahub_time(d.last_modified)
+        d_['view_link'] = d.view_link
+        d_['dl_link'] = d.dl_link
+        d_['sharelink'] = d.sharelink
+        d_['sharetoken'] = d.sharetoken
+        d_['uploadlink'] = d.uploadlink
+        d_['uploadtoken'] = d.uploadtoken
+        dirent_list.append(d_)
+
+    for f in file_list:
+        f_ = {}
+        f_['is_file'] = True
+        f_['file_icon'] = file_icon_filter(f.obj_name)
+        f_['obj_name'] = f.obj_name
+        f_['last_modified'] = f.last_modified
+        f_['last_update'] = translate_seahub_time(f.last_modified)
+        f_['starred'] = f.starred
+        f_['view_link'] = f.view_link
+        f_['file_size'] = filesizeformat(f.file_size)
+        f_['dl_link'] = f.dl_link
+        f_['obj_id'] = f.props.obj_id
+        f_['sharelink'] = f.sharelink
+        f_['sharetoken'] = f.sharetoken
+        f_['history_link'] = f.history_link
+        dirent_list.append(f_)
+
+    return HttpResponse(json.dumps({'dirent_list': dirent_list}),
                         content_type=content_type)
 
 

@@ -7,7 +7,7 @@ from seahub.views import *
 from seahub.views.file import view_file, view_history_file, view_trash_file,\
     view_snapshot_file, file_edit, view_shared_file, view_file_via_shared_dir,\
     text_diff, view_priv_shared_file
-from seahub.views.repo import repo, repo_history_view
+from seahub.views.repo import repo, repo_history_view, lib
 from notifications.views import notification_list
 from group.views import group_list
 from message.views import user_msg_list, user_msg_remove, user_received_msg_remove
@@ -83,6 +83,8 @@ urlpatterns = patterns('',
     url(r'^repo/(?P<repo_id>[-0-9a-f]{36})/owner/$', repo_transfer_owner, name='repo_transfer_owner'),
     url(r'^repo/(?P<repo_id>[-0-9a-f]{36})/passwd/$', repo_change_passwd, name='repo_change_passwd'),
 
+    url(r'^lib/(?P<repo_id>[-0-9a-f]{36})/$', lib, name='lib'),
+
     ### share file/dir, upload link ###
     url(r'^s/f/(?P<token>[a-f0-9]{10})/$', view_priv_shared_file, name="view_priv_shared_file"),
     url(r'^s/f/(?P<token>[a-f0-9]{10})/rm/$', rm_private_file_share, name="rm_private_file_share"),
@@ -149,6 +151,8 @@ urlpatterns = patterns('',
     url(r'^ajax/space_and_traffic/$', space_and_traffic, name='space_and_traffic'),
     url(r'^ajax/my-shared-and-group-repos/$', my_shared_and_group_repos, name='my_shared_and_group_repos'),
     url(r'^ajax/events/$', events, name="events"),
+
+    url(r'^ajax/lib/(?P<repo_id>[-0-9a-f]{36})/dirents/$', get_lib_dirents, name="get_lib_dirents"),
 
     ### Organizaion ###
     url(r'^pubinfo/libraries/$', pubrepo, name='pubrepo'),
