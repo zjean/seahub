@@ -110,9 +110,7 @@
 
 {% block extra_script %}
 <script type="text/template" id="dirent-template">
-<% _.each(dirents, function(dirent) { %>
     <% if (dirent.is_dir) { %>
-        <tr class="dir-item" data-name="<%= dirent.obj_name %>" data-time="<% if (dirent.last_modified) { print(dirent.last_modified); } else { print(0); } %>">
             <td class="select">
                 <span class="checkbox"><input type="checkbox" class="checkbox-orig" /></span>
             </td>
@@ -148,9 +146,7 @@
                     {% endif %}
                 </div>
             </td>
-        </tr>
     <% } else { %>
-        <tr class="file-item" data-name="<%= dirent.obj_name %>" data-time="<% if (dirent.last_modified) { print(dirent.last_modified); } else { print(0); } %>">
             <td class="select">
                 <span class="checkbox"><input type="checkbox" class="checkbox-orig" /></span>
             </td>
@@ -201,18 +197,60 @@
                     {% endif %}
                 </div>
             </td>
-        </tr>
     <% } %>
-<% }); %>
 </script>
 <script type="text/javascript" src="{{MEDIA_URL}}js/underscore-min.js"></script>
+<script type="text/javascript" src="{{MEDIA_URL}}js/backbone-min.js"></script>
 <script type="text/javascript">
-    $.ajax({
-        url: '{% url 'get_lib_dirents' repo.id %}',
-        dataType: 'json',
-        success: function (data) {
-            $('.repo-file-list').append(_.template($('#dirent-template').html(), { dirents: data.dirent_list }));
-        }
-    });
+var Dirent = Backbone.Model.extend({
+    //idAttribute: 'obj_name'
+});
+
+var Dirents = Backbone.Collection.extend({
+    model: Dirent,
+    url: '{% url 'get_lib_dirents' repo.id %}'
+});
+var dirents = new Dirents();
+
+var DirentView = Backbone.View.extend({
+    tagName: 'tr',
+    className: function () { // just for 'star' style
+        return this.model.get('is_dir') ? 'dir-item' : 'file-item';
+    },
+    events: {
+    },
+    template: _.template($('#dirent-template').html()),
+    initialize: function() {
+        this.listenTo(this.model, "change", this.render);
+        this.listenTo(this.model, 'destroy', this.remove);
+    },
+    render: function () {
+        this.$el.html(this.template({dirent: this.model.attributes}));
+        return this;
+    }
+});
+
+var DirentsView = Backbone.View.extend({
+    initialize: function () {
+        this.listenTo(dirents, 'add', this.addOne);
+        dirents.fetch();
+        this.addAll();
+    },
+    render: function () {
+    },
+    addOne: function (dirent) {
+        var view = new DirentView({model: dirent});
+        $('.repo-file-list').append(view.render().el);
+    },
+    addAll: function () {
+        dirents.each(this.addOne, this);
+    }
+});
+
+var app = new DirentsView();
+
+var LibRouter = Backbone.Router.extend({
+});
+
 </script>
 {% endblock %}

@@ -448,7 +448,7 @@ def get_lib_dirents(request, repo_id):
         f_['history_link'] = f.history_link
         dirent_list.append(f_)
 
-    return HttpResponse(json.dumps({'dirent_list': dirent_list}),
+    return HttpResponse(json.dumps(dirent_list),
                         content_type=content_type)
 
 
