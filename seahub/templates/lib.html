@@ -94,6 +94,9 @@
     </div>
     {% endif %}
 
+    {# popups starts #}
+    {% include "snippets/file_share_popup.html" %} {# dir/file share popup #}
+
     {% if repo.enc_version == 2 and not server_crypto and repo.encrypted %}
     <form id="repo-decrypt-form" class="wide-panel hide">
         <p>{% trans "This library is encrypted. Please input the password if you want to browse it online. And the password will be kept in the browser for only 1 hour." %}</p>
@@ -132,11 +135,11 @@
                     <div class="displayed-op">
                         <a class="op dir-download" href="<%= dirent.dl_link %>">{% trans "Download" %}</a>
                         {% if not repo.encrypted %}
-                        <a class="op dir-share" href="#" data-link="<%= dirent.sharelink %>" data-token="<%= dirent.sharetoken %>" data-upload-link="<%= dirent.uploadlink %>" data-upload-token="<%= dirent.uploadtoken %>">{% trans "Share" %}</a>
+                        <a class="op share" href="#" data-link="<%= dirent.sharelink %>" data-token="<%= dirent.sharetoken %>" data-upload-link="<%= dirent.uploadlink %>" data-upload-token="<%= dirent.uploadtoken %>">{% trans "Share" %}</a>
                         {% endif %}
                     </div>
                     {% if user_perm == 'rw' %}
-                    <img src="{{ MEDIA_URL }}img/dropdown-arrow.png" title="{% trans "More operations" %}" alt="{% trans "More operations" %}" class="more-op-icon cspt" data="no-popup" />
+                    <img src="{{ MEDIA_URL }}img/dropdown-arrow.png" title="{% trans "More operations" %}" alt="{% trans "More operations" %}" class="more-op-icon cspt" />
                     <ul class="hidden-op hide">
                         <li><a class="op dir-del" href="#">{% trans "Delete" %}</a></li>
                         <li><a class="op dir-rename" href="#">{% trans "Rename" %}</a></li>
@@ -182,11 +185,11 @@
                         {% endif %}
 
                         {% if not repo.encrypted %}
-                        <a class="op file-share" href="#" data-link="<%= dirent.sharelink %>" data-token="<%= dirent.sharetoken %>">{% trans "Share" %}</a>
+                        <a class="op share" href="#" data-link="<%= dirent.sharelink %>" data-token="<%= dirent.sharetoken %>">{% trans "Share" %}</a>
                         {% endif %}
                     </div>
                     {% if user_perm == 'rw' %}
-                    <img src="{{ MEDIA_URL }}img/dropdown-arrow.png" title="{% trans "More Operations"%}" alt="{% trans "More Operations"%}" class="more-op-icon cspt" data="no-popup" />
+                    <img src="{{ MEDIA_URL }}img/dropdown-arrow.png" title="{% trans "More Operations"%}" alt="{% trans "More Operations"%}" class="more-op-icon cspt" />
                     <ul class="hidden-op hide">
                         <li><a class="op file-del" href="#">{% trans "Delete" %}</a></li>
                         <li><a class="op file-rename" href="#">{% trans "Rename" %}</a></li>
@@ -201,7 +204,12 @@
 </script>
 <script type="text/javascript" src="{{MEDIA_URL}}js/underscore-min.js"></script>
 <script type="text/javascript" src="{{MEDIA_URL}}js/backbone-min.js"></script>
+<script type="text/javascript" src="{{MEDIA_URL}}js/select2.min.js"></script> {# for file private share #}
 <script type="text/javascript">
+// global var
+var no_file_op_popup = true;
+var popup_tr;
+
 var Dirent = Backbone.Model.extend({
     //idAttribute: 'obj_name'
 });
@@ -214,10 +222,8 @@ var dirents = new Dirents();
 
 var DirentView = Backbone.View.extend({
     tagName: 'tr',
-    className: function () { // just for 'star' style
+    className: function () { // just for 'star' style. Todo: improve it?
         return this.model.get('is_dir') ? 'dir-item' : 'file-item';
-    },
-    events: {
     },
     template: _.template($('#dirent-template').html()),
     initialize: function() {
@@ -227,7 +233,73 @@ var DirentView = Backbone.View.extend({
     render: function () {
         this.$el.html(this.template({dirent: this.model.attributes}));
         return this;
+    },
+    events: {
+        'mouseenter': 'hl',
+        'mouseleave': 'rmhl',
+        'click .more-op-icon': 'togglePopup',
+        'click .share': 'share'
+    },
+    hl: function () {
+        if (no_file_op_popup) {
+            this.$el.addClass('hl').find('.repo-file-op').removeClass('vh');
+        }
+    },
+    rmhl: function () {
+        if (no_file_op_popup) {
+            this.$el.removeClass('hl').find('.repo-file-op').addClass('vh');
+        }
+    },
+    togglePopup: function () {
+        var icon = this.$('.more-op-icon'),
+            popup = this.$('.hidden-op');
+
+        if (popup.hasClass('hide')) { // the popup is not shown
+            if (icon.position().left + icon.width() + popup.outerWidth() < icon.parent().width()) {
+                popup.css({'left': icon.position().left + icon.width() + 5});
+                if (icon.offset().top + popup.height() <= $('#main').offset().top + $('#main').height()) {
+                    popup.css('top', 6);
+                } else {
+                    popup.css('bottom', 2);
+                }
+            } else {
+                popup.css({'right':0});
+                if (icon.offset().top + popup.height() <= $('#main').offset().top + $('#main').height()) {
+                    popup.css('top', icon.position().top + icon.height() + 3);
+                } else {
+                    popup.css('bottom', icon.position().top + icon.height() + 3);
+                }
+            }
+            popup.removeClass('hide');
+            no_file_op_popup = false;
+            popup_tr = icon.parents('tr');
+        } else {
+            popup.addClass('hide');
+            no_file_op_popup = true;
+            popup_tr = '';
+        }
+    },
+    share: function () {
+        var op = this.$('.share'),
+            name = this.model.get('obj_name');
+
+        // Todo
+        var cur_path = "{{ path|safe }}"; {# safe is for ''', '&' included in path #}
+
+        var aj_urls = {
+            'link': '{% url 'get_shared_link' %}?repo_id={{ repo.id }}&p=' + e(cur_path) + e(name),
+            'upload-link': '{% url 'get_shared_upload_link' %}?repo_id={{ repo.id }}&p=' + e(cur_path) + e(name)
+        };
+
+        var type = this.model.get('is_dir') ? 'd' : 'f';
+        if (type == 'd') {
+            aj_urls['link'] += '&type=d';
+        }
+
+        showSharePopup(op, name, aj_urls, type, cur_path);
+        return false;
     }
+    // add here
 });
 
 var DirentsView = Backbone.View.extend({
@@ -252,5 +324,26 @@ var app = new DirentsView();
 var LibRouter = Backbone.Router.extend({
 });
 
+// hide 'hidden-op' popup
+$(document).click(function(e) {
+    var target =  e.target || event.srcElement;
+    if (!no_file_op_popup &&
+        !$('.more-op-icon, .hidden-op').is(target) &&
+        !$('.hidden-op').find('*').is(target)) {
+        $('.hidden-op').addClass('hide');
+        no_file_op_popup = true;
+        if (!popup_tr.find('*').is(target)) {
+            popup_tr.removeClass('hl').find('.repo-file-op').addClass('vh'); // clicked place: the first tr, place out of the table
+            $('tr:gt(0)').each(function() { // when other tr is clicked
+                if ($(this).find('*').is(target)) {
+                    $(this).addClass('hl').find('.repo-file-op').removeClass('vh');
+                }
+            });
+        }
+    }
+});
+
+// for 'share'. Todo: improve code
+{% include "snippets/shared_link_js.html" %}
 </script>
 {% endblock %}
