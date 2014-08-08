@@ -86,11 +86,7 @@
             </tr>
             {#% include 'snippets/repo_dirents.html' %#}
         </table>
-
-        {% if dirent_more %}
-        <img class="dirent-more loading-tip" src="{{MEDIA_URL}}img/loading-icon.gif" alt="{% trans 'Loading...' %}" data-start="{{more_start}}" />
-        {% endif %}
-
+        <img class="loading-tip" src="{{MEDIA_URL}}img/loading-icon.gif" alt="{% trans 'Loading...' %}" />
     </div>
     {% endif %}
 
@@ -216,7 +212,12 @@ var Dirent = Backbone.Model.extend({
 
 var Dirents = Backbone.Collection.extend({
     model: Dirent,
-    url: '{% url 'get_lib_dirents' repo.id %}'
+    url: '{% url 'get_lib_dirents' repo.id %}',
+    parse: function (data) {
+        this.dirent_more = data.dirent_more;
+        this.more_start = data.more_start;
+        return data.dirent_list; // return the array
+    }
 });
 var dirents = new Dirents();
 
@@ -235,17 +236,17 @@ var DirentView = Backbone.View.extend({
         return this;
     },
     events: {
-        'mouseenter': 'hl',
-        'mouseleave': 'rmhl',
+        'mouseenter': 'highlight',
+        'mouseleave': 'rmHighlight',
         'click .more-op-icon': 'togglePopup',
         'click .share': 'share'
     },
-    hl: function () {
+    highlight: function () {
         if (no_file_op_popup) {
             this.$el.addClass('hl').find('.repo-file-op').removeClass('vh');
         }
     },
-    rmhl: function () {
+    rmHighlight: function () {
         if (no_file_op_popup) {
             this.$el.removeClass('hl').find('.repo-file-op').addClass('vh');
         }
@@ -283,9 +284,7 @@ var DirentView = Backbone.View.extend({
         var op = this.$('.share'),
             name = this.model.get('obj_name');
 
-        // Todo
-        var cur_path = "{{ path|safe }}"; {# safe is for ''', '&' included in path #}
-
+        var cur_path = "{{ path|safe }}"; {# safe is for ''', '&' included in path #} // Todo ??
         var aj_urls = {
             'link': '{% url 'get_shared_link' %}?repo_id={{ repo.id }}&p=' + e(cur_path) + e(name),
             'upload-link': '{% url 'get_shared_upload_link' %}?repo_id={{ repo.id }}&p=' + e(cur_path) + e(name)
@@ -299,29 +298,53 @@ var DirentView = Backbone.View.extend({
         showSharePopup(op, name, aj_urls, type, cur_path);
         return false;
     }
-    // add here
+    // add events here
 });
 
 var DirentsView = Backbone.View.extend({
     initialize: function () {
         this.listenTo(dirents, 'add', this.addOne);
         dirents.fetch();
-        this.addAll();
     },
     render: function () {
     },
     addOne: function (dirent) {
         var view = new DirentView({model: dirent});
         $('.repo-file-list').append(view.render().el);
-    },
-    addAll: function () {
-        dirents.each(this.addOne, this);
+        if (dirent === _.last(dirents.models) &&
+            !dirents.dirent_more) {
+            $('.loading-tip').hide();
+        }
     }
 });
 
 var app = new DirentsView();
 
 var LibRouter = Backbone.Router.extend({
+});
+
+var last_start = 0; // to stop repeated request
+$(window).scroll(function() {
+    // scroll to the bottom, trigger 'request more'
+    var start = dirents.more_start;
+    if (dirents.dirent_more && $(window).scrollTop() + $(window).height() > $(document).height() - parseInt($('#repo-file-list').css('margin-bottom')) && start != last_start) {
+        last_start = start;
+        var cur_path = "{{ path|safe }}"; // Todo ??
+        $.ajax({
+            url:'{% url 'get_more_lib_dirents' repo.id %}?p=' + e(cur_path) + '&start=' + e(start),
+            dataType: 'json',
+            cache: false,
+            success: function(data) {
+                dirents.dirent_more = data.dirent_more;
+                dirents.more_start = data.more_start;
+                dirents.add(data.dirent_list); // this will fire 'add' event, making the view update
+            },
+            error: function(xhr, textStatus, errorThrown) { // is this interaction ok ?
+                $('.loading-tip').hide();
+                ajaxErrorHandler(xhr, textStatus, errorThrown);
+            }
+        });
+    }
 });
 
 // hide 'hidden-op' popup

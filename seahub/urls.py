@@ -152,7 +152,9 @@ urlpatterns = patterns('',
     url(r'^ajax/my-shared-and-group-repos/$', my_shared_and_group_repos, name='my_shared_and_group_repos'),
     url(r'^ajax/events/$', events, name="events"),
 
+    ## ajax lib
     url(r'^ajax/lib/(?P<repo_id>[-0-9a-f]{36})/dirents/$', get_lib_dirents, name="get_lib_dirents"),
+    url(r'^ajax/lib/(?P<repo_id>[-0-9a-f]{36})/dirents/more/$', get_more_lib_dirents, name="get_more_lib_dirents"),
 
     ### Organizaion ###
     url(r'^pubinfo/libraries/$', pubrepo, name='pubrepo'),
