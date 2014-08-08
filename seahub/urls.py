@@ -154,7 +154,6 @@ urlpatterns = patterns('',
 
     ## ajax lib
     url(r'^ajax/lib/(?P<repo_id>[-0-9a-f]{36})/dirents/$', get_lib_dirents, name="get_lib_dirents"),
-    url(r'^ajax/lib/(?P<repo_id>[-0-9a-f]{36})/dirents/more/$', get_more_lib_dirents, name="get_more_lib_dirents"),
 
     ### Organizaion ###
     url(r'^pubinfo/libraries/$', pubrepo, name='pubrepo'),

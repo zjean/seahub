@@ -217,6 +217,24 @@ var Dirents = Backbone.Collection.extend({
         this.dirent_more = data.dirent_more;
         this.more_start = data.more_start;
         return data.dirent_list; // return the array
+    },
+    more: function () {
+        var _this = this;
+        var cur_path = "{{ path|safe }}"; // Todo ??
+        $.ajax({
+            url: _this.url + '?p=' + e(cur_path) + '&start=' + e(_this.more_start),
+            dataType: 'json',
+            cache: false,
+            success: function(data) {
+                _this.dirent_more = data.dirent_more;
+                _this.more_start = data.more_start;
+                _this.add(data.dirent_list); // this will fire 'add' event, making the view update
+            },
+            error: function(xhr, textStatus, errorThrown) { // is this interaction ok ?
+                $('.loading-tip').hide();
+                ajaxErrorHandler(xhr, textStatus, errorThrown);
+            }
+        });
     }
 });
 var dirents = new Dirents();
@@ -329,21 +347,7 @@ $(window).scroll(function() {
     var start = dirents.more_start;
     if (dirents.dirent_more && $(window).scrollTop() + $(window).height() > $(document).height() - parseInt($('#repo-file-list').css('margin-bottom')) && start != last_start) {
         last_start = start;
-        var cur_path = "{{ path|safe }}"; // Todo ??
-        $.ajax({
-            url:'{% url 'get_more_lib_dirents' repo.id %}?p=' + e(cur_path) + '&start=' + e(start),
-            dataType: 'json',
-            cache: false,
-            success: function(data) {
-                dirents.dirent_more = data.dirent_more;
-                dirents.more_start = data.more_start;
-                dirents.add(data.dirent_list); // this will fire 'add' event, making the view update
-            },
-            error: function(xhr, textStatus, errorThrown) { // is this interaction ok ?
-                $('.loading-tip').hide();
-                ajaxErrorHandler(xhr, textStatus, errorThrown);
-            }
-        });
+        dirents.more();
     }
 });
 

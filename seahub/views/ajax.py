@@ -411,84 +411,12 @@ def get_lib_dirents(request, repo_id):
     if path[-1] != '/':
         path = path + '/'
 
-    more_start = None
-    file_list, dir_list, dirent_more = get_repo_dirents(request, repo, head_commit, path, offset=0, limit=100)
-    if dirent_more:
-        more_start = 100
-    dirent_list = dirents_toJSON(dir_list, file_list)
-
-    return HttpResponse(json.dumps({
-        "dirent_list": dirent_list,
-        "dirent_more": dirent_more,
-        "more_start": more_start
-        }), content_type=content_type)
-
-@login_required_ajax
-def get_more_lib_dirents(request, repo_id):
-    """
-    Get more lib dirents
-    """
-    content_type = 'application/json; charset=utf-8'
-
-    repo = get_repo(repo_id)
-    if not repo:
-        err_msg = _(u'Library does not exist.')
-        return HttpResponse(json.dumps({'error': err_msg}),
-                            status=400, content_type=content_type)
-
-    username = request.user.username
-    user_perm = check_repo_access_permission(repo.id, request.user)
-    if user_perm is None:
-        err_msg = _(u'Permission denied.')
-        return HttpResponse(json.dumps({'error': err_msg}),
-                            status=403, content_type=content_type)
-
-    sub_lib_enabled = UserOptions.objects.is_sub_lib_enabled(username)
-
-    try:
-        server_crypto = UserOptions.objects.is_server_crypto(username)
-    except CryptoOptionNotSetError:
-        # Assume server_crypto is ``False`` if this option is not set.
-        server_crypto = False
-
-    if repo.encrypted and \
-            (repo.enc_version == 1 or (repo.enc_version == 2 and server_crypto)) \
-           and not seafile_api.is_password_set(repo.id, username):
-        err_msg = _(u'Library is encrypted.')
-        return HttpResponse(json.dumps({'error': err_msg}),
-                            status=403, content_type=content_type)
-
-    head_commit = get_commit(repo.id, repo.version, repo.head_cmmt_id)
-    if not head_commit:
-        err_msg = _(u'Error: no head commit id')
-        return HttpResponse(json.dumps({'error': err_msg}),
-                            status=500, content_type=content_type)
-
-    path = request.GET.get('p', '/')
-    if path[-1] != '/':
-        path = path + '/'
-
-    offset = int(request.GET.get('start'))
-    if not offset:
-        err_msg = _(u'Argument missing')
-        return HttpResponse(json.dumps({'error': err_msg}),
-                            status=400, content_type=content_type)
-    more_start = None
+    offset = int(request.GET.get('start', 0))
     file_list, dir_list, dirent_more = get_repo_dirents(request, repo, head_commit, path, offset, limit=100)
+    more_start = None
     if dirent_more:
         more_start = offset + 100
-    dirent_list = dirents_toJSON(dir_list, file_list)
 
-    return HttpResponse(json.dumps({
-        "dirent_list": dirent_list,
-        "dirent_more": dirent_more,
-        "more_start": more_start
-        }), content_type=content_type)
-
-def dirents_toJSON(dir_list, file_list):
-    '''
-    Convert dir_list, file_list. Todo: express more clear.
-    '''
     dirent_list = []
     for d in dir_list:
         d_ = {}
@@ -521,7 +449,11 @@ def dirents_toJSON(dir_list, file_list):
         f_['history_link'] = f.history_link
         dirent_list.append(f_)
 
-    return dirent_list
+    return HttpResponse(json.dumps({
+        "dirent_list": dirent_list,
+        "dirent_more": dirent_more,
+        "more_start": more_start
+        }), content_type=content_type)
 
 
 def new_dirent_common(func):
