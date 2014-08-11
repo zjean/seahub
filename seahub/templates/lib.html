@@ -313,7 +313,7 @@ var DirentView = Backbone.View.extend({
 var DirentsView = Backbone.View.extend({
     initialize: function () {
         this.listenTo(dirents, 'add', this.addOne);
-        dirents.fetch();
+        //dirents.fetch();
     },
     render: function () {
     },
@@ -326,12 +326,21 @@ var DirentsView = Backbone.View.extend({
         }
     }
 });
-
-var app = new DirentsView();
+var view = new DirentsView();
 
 var LibRouter = Backbone.Router.extend({
+    routes: {
+        'lib/{{repo.id}}/(:path/)': 'get_dirents'
+    },
+    get_dirents: function () {
+        dirents.fetch();
+    }
 });
-//Backbone.history.start({pushState: true});
+var router = new LibRouter();
+Backbone.history.start({
+    pushState: true,
+    root: '{{SITE_ROOT}}'
+});
 
 var last_start = 0; // to stop repeated request
 $(window).scroll(function() {
