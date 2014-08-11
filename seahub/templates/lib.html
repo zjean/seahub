@@ -219,17 +219,8 @@ var Dirents = Backbone.Collection.extend({
         return data.dirent_list; // return the array
     },
     more: function () {
-        var _this = this;
-        var cur_path = "{{ path|safe }}"; // Todo ??
-        $.ajax({
-            url: _this.url + '?p=' + e(cur_path) + '&start=' + e(_this.more_start),
-            dataType: 'json',
-            cache: false,
-            success: function(data) {
-                _this.dirent_more = data.dirent_more;
-                _this.more_start = data.more_start;
-                _this.add(data.dirent_list); // this will fire 'add' event, making the view update
-            },
+        this.fetch({
+            data: {'start': this.more_start},
             error: function(xhr, textStatus, errorThrown) { // is this interaction ok ?
                 $('.loading-tip').hide();
                 ajaxErrorHandler(xhr, textStatus, errorThrown);
@@ -340,6 +331,7 @@ var app = new DirentsView();
 
 var LibRouter = Backbone.Router.extend({
 });
+//Backbone.history.start({pushState: true});
 
 var last_start = 0; // to stop repeated request
 $(window).scroll(function() {
