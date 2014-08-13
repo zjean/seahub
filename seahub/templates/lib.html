@@ -254,6 +254,7 @@ var DirentView = Backbone.View.extend({
     events: {
         'mouseenter': 'highlight',
         'mouseleave': 'rmHighlight',
+        'click .dir-link': 'visitDir',
         'click .more-op-icon': 'togglePopup',
         'click .share': 'share'
     },
@@ -266,6 +267,38 @@ var DirentView = Backbone.View.extend({
         if (no_file_op_popup) {
             this.$el.removeClass('hl').find('.repo-file-op').addClass('vh');
         }
+    },
+    visitDir: function () {
+        // show 'loading'
+        this.$('.dirent-icon img').attr({
+            'src':'{{MEDIA_URL}}img/loading-icon.gif',
+            'alt':''
+        });
+        // empty all models
+        dirents.reset();
+        // update url & dirents
+        router.navigate(this.model.get('view_link'), {trigger: true});
+        // update '.path'
+        var path_ct = $('.path'),
+            root_el = $('a', path_ct)[0],
+            path_list = dirents.path.substr(1).split('/'),
+            mid_path, el = $(root_el).clone();
+        path_ct.html(root_el).append(' / ');
+        for (var i = 0,len = path_list.length; i < len; i++) {
+            if (i == len - 1) {
+                path_ct.append(path_list[i] + ' /');
+            } else {
+                mid_path = path_list.slice(0, i+1).join('/');
+                el.html(mid_path).attr('href', el.attr('href') + mid_path + '/');
+                path_ct.append(el).append(' / ');
+            }
+        }
+        // show 'share' btn
+        if ($('#share-cur-dir').length == 0) {
+            $('.repo-op').append('<button class="op-btn" id="share-cur-dir"><span class="sf-icon-share"></span>{% trans "Share"%}</button>');
+        // Todo: update 'share' button data ?
+        }
+        return false;
     },
     togglePopup: function () {
         var icon = this.$('.more-op-icon'),
@@ -314,12 +347,12 @@ var DirentView = Backbone.View.extend({
         showSharePopup(op, name, aj_urls, type, cur_path);
         return false;
     }
-    // add events here
 });
 
 var DirentsView = Backbone.View.extend({
     initialize: function () {
         this.listenTo(dirents, 'add', this.addOne);
+        this.listenTo(dirents, 'reset', this.empty);
         //dirents.fetch();
     },
     render: function () {
@@ -331,6 +364,9 @@ var DirentsView = Backbone.View.extend({
             !dirents.dirent_more) {
             $('.loading-tip').hide();
         }
+    },
+    empty: function () {
+        $('.repo-file-list tr:gt(0)').remove();
     }
 });
 var view = new DirentsView();
