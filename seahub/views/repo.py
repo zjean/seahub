@@ -292,7 +292,7 @@ def repo(request, repo_id):
                     }, context_instance=RequestContext(request))
 
 @login_required
-def lib(request, repo_id):
+def lib(request, repo_id, path=None):
 
     repo = get_repo(repo_id)
 
@@ -300,7 +300,11 @@ def lib(request, repo_id):
         raise Http404
 
     username = request.user.username
-    path = get_path_from_request(request)
+    # path is None or something like 'bb/'
+    if path is None:
+        path = '/' # root
+    else:
+        path = '/' + path[:-1]
     user_perm = check_repo_access_permission(repo.id, request.user)
     if user_perm is None:
         return render_to_response('repo_access_deny.html', {
@@ -364,6 +368,7 @@ def lib(request, repo_id):
     if dirent_more:
         more_start = 100
     zipped = get_nav_path(path, repo.name)
+
     repo_groups = get_shared_groups_by_repo_and_user(repo.id, username)
     if len(repo_groups) > 1:
         repo_group_str = render_to_string("snippets/repo_group_list.html",

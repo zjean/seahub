@@ -3,6 +3,7 @@ import os
 import stat
 import logging
 import json
+import posixpath
 
 from django.core.urlresolvers import reverse
 from django.http import HttpResponse, Http404, HttpResponseBadRequest
@@ -418,13 +419,15 @@ def get_lib_dirents(request, repo_id):
         more_start = offset + 100
 
     dirent_list = []
+    view_dir_base = reverse('lib', kwargs={'repo_id': repo.id, 'path':''})
     for d in dir_list:
         d_ = {}
         d_['is_dir'] = True
         d_['obj_name'] = d.obj_name
         d_['last_modified'] = d.last_modified
         d_['last_update'] = translate_seahub_time(d.last_modified)
-        d_['view_link'] = d.view_link
+        p_dpath = posixpath.join(path, d.obj_name)
+        d_['view_link'] = view_dir_base + p_dpath[1:] + '/'
         d_['dl_link'] = d.dl_link
         d_['sharelink'] = d.sharelink
         d_['sharetoken'] = d.sharetoken

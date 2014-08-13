@@ -83,7 +83,7 @@ urlpatterns = patterns('',
     url(r'^repo/(?P<repo_id>[-0-9a-f]{36})/owner/$', repo_transfer_owner, name='repo_transfer_owner'),
     url(r'^repo/(?P<repo_id>[-0-9a-f]{36})/passwd/$', repo_change_passwd, name='repo_change_passwd'),
 
-    url(r'^lib/(?P<repo_id>[-0-9a-f]{36})/$', lib, name='lib'),
+    url(r'^lib/(?P<repo_id>[-0-9a-f]{36})/contents/(?P<path>.*)$', lib, name='lib'),
 
     ### share file/dir, upload link ###
     url(r'^s/f/(?P<token>[a-f0-9]{10})/$', view_priv_shared_file, name="view_priv_shared_file"),

@@ -46,7 +46,11 @@
             <p class="path fleft">
             {% for name, link in zipped %}
             {% if forloop.first or not forloop.last %}
-            <a href="{{ SITE_ROOT }}repo/{{ repo.id }}/?p={{ link|urlencode }}" class="dir-link normal">{{ name }}</a> /    
+                {% if forloop.first %}
+                <a href="{{ SITE_ROOT }}lib/{{ repo.id }}/contents/" class="dir-link normal">{{ name }}</a> /
+                {% else %}
+                <a href="{{ SITE_ROOT }}lib/{{ repo.id }}/contents{{ link }}/" class="dir-link normal">{{ name }}</a> /
+                {% endif %}
             {% else %}
             <span id="cur-dir-name">{{ name }}</span> /
             {% endif %}
@@ -220,7 +224,10 @@ var Dirents = Backbone.Collection.extend({
     },
     more: function () {
         this.fetch({
-            data: {'start': this.more_start},
+            data: {
+                'p': this.path,
+                'start': this.more_start
+            },
             error: function(xhr, textStatus, errorThrown) { // is this interaction ok ?
                 $('.loading-tip').hide();
                 ajaxErrorHandler(xhr, textStatus, errorThrown);
@@ -330,10 +337,24 @@ var view = new DirentsView();
 
 var LibRouter = Backbone.Router.extend({
     routes: {
-        'lib/{{repo.id}}/(:path/)': 'get_dirents'
+        'lib/{{repo.id}}/contents/(*path)': 'get_dirents'
     },
-    get_dirents: function () {
-        dirents.fetch();
+    get_dirents: function(path) {
+        if (!path) {
+            path = '/';
+        } else {
+            path = '/' + path.substr(0, path.length - 1);
+        }
+        dirents.path = path;
+        dirents.fetch({
+            data: {'p': path},
+            success: function (collection, response, opts) {
+                // the dir is empty
+                if (response.dirent_list.length == 0) {
+                    $('.loading-tip').hide();
+                }
+            }
+        });
     }
 });
 var router = new LibRouter();
