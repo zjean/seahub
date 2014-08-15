@@ -57,38 +57,7 @@
     <div id="repo-file-list"></div>
     {% else %}
     <div id="repo-file-list">
-        {#% include 'snippets/repo_dir_data.html' %#}
-        <div class="repo-file-list-topbar ovhd">
-            <p class="path fleft">
-            {% for name, link in zipped %}
-            {% if forloop.first or not forloop.last %}
-                {% if forloop.first %}
-                <a href="{{ SITE_ROOT }}lib/{{ repo.id }}/contents/" class="dir-link normal">{{ name }}</a> /
-                {% else %}
-                <a href="{{ SITE_ROOT }}lib/{{ repo.id }}/contents{{ link }}/" class="dir-link normal">{{ name }}</a> /
-                {% endif %}
-            {% else %}
-            <span id="cur-dir-name">{{ name }}</span> /
-            {% endif %}
-            {% endfor %}
-            </p>
-            <div class="repo-op fright">
-                {% if user_perm == 'rw' %}
-                <button id="upload-file" class="op-btn"><!--span class="icon-upload-alt"></span-->{% trans "Upload"%}</button>
-                <button id="add-new-dir" class="op-btn"><!--span class="icon-plus-sign-alt"></span-->{% trans "New Directory"%}</button>
-                {% if repo.encrypted and repo.enc_version == 2 and not server_crypto %}
-                {% else %}
-                <button id="add-new-file" class="op-btn"><!--span class="icon-plus-sign-alt"></span-->{% trans "New File"%}</button>
-                {% endif %}
-                {% endif %}
-
-                {% if path != '/' %}
-                {% if not repo.encrypted %}
-                <button data-url="{% url 'get_shared_link' %}?repo_id={{ repo.id }}&p={{ path|urlencode }}&type=d" data-link="{{ dir_shared_link }}" data-token="{{fileshare.token}}" data-upload-url="{% url 'get_shared_upload_link' %}?repo_id={{ repo.id }}&p={{ path|urlencode }}" data-upload-link="{{ dir_shared_upload_link }}" data-upload-token="{{ uploadlink.token }}" class="op-btn" id="share-cur-dir"><span class="sf-icon-share"></span>{% trans "Share"%}</button>
-                {% endif %}
-                {% endif %}
-            </div>
-        </div>
+        <div class="repo-file-list-topbar ovhd"></div>
         <table class="repo-file-list">
             <tr>
                 <th class="select">
@@ -101,7 +70,6 @@
                 <th class="dirent-update">{% trans "Last Update" %} <span id="time-up" class="icon-caret-up cspt hide"></span> <span id="time-down" class="icon-caret-down cspt"></span></th>
                 <th class="dirent-op">{% trans "Operations"%}</th>
             </tr>
-            {#% include 'snippets/repo_dirents.html' %#}
         </table>
         <img class="loading-tip" src="{{MEDIA_URL}}img/loading-icon.gif" alt="{% trans 'Loading...' %}" />
     </div>
@@ -125,6 +93,36 @@
 {% endblock %}
 
 {% block extra_script %}
+<script type="text/template" id="top-template">
+    <p class="path fleft">
+        <a href="{{ SITE_ROOT }}lib/{{ repo.id }}/contents/" class="path-link normal">{{ repo.name }}</a> /
+        <% for (var i = 0,len = path_list.length; i < len; i++) { %>
+            <% if (i == len - 1) { %>
+                <% print(path_list[i] + ' /'); %>
+            <% } else { %>
+                <% mid_path = path_list.slice(0, i+1).join('/'); %>
+                <a href="{{ SITE_ROOT }}lib/{{ repo.id }}/contents/<%= mid_path %>/" class="path-link normal"><%= mid_path %></a> /
+            <% } %>
+        <% } %>
+    </p>
+
+    <div class="repo-op fright">
+        {% if user_perm == 'rw' %}
+        <button id="upload-file" class="op-btn">{% trans "Upload"%}</button>
+        <button id="add-new-dir" class="op-btn">{% trans "New Directory"%}</button>
+        {% if repo.encrypted and repo.enc_version == 2 and not server_crypto %}
+        {% else %}
+        <button id="add-new-file" class="op-btn">{% trans "New File"%}</button>
+        {% endif %}
+        {% endif %}
+
+        <% if (path != '/') { %>
+        {% if not repo.encrypted %}
+        <button class="op-btn" id="share-cur-dir">{% trans "Share" %}</button>
+        {% endif %}
+        <% } %>
+    </div>
+</script>
 <script type="text/template" id="dirent-template">
     <% if (dirent.is_dir) { %>
             <td class="select">
@@ -221,7 +219,6 @@ var no_file_op_popup = true;
 var popup_tr;
 
 var Dirent = Backbone.Model.extend({
-    //idAttribute: 'obj_name'
 });
 
 var Dirents = Backbone.Collection.extend({
@@ -288,26 +285,6 @@ var DirentView = Backbone.View.extend({
         dirents.reset();
         // update url & dirents
         router.navigate(this.model.get('view_link'), {trigger: true});
-        // update '.path'
-        var path_el = $('.path'),
-            root_el = $('a', path_el)[0],
-            path_list = dirents.path.substr(1).split('/'),
-            mid_path, el = $(root_el).clone();
-        path_el.html(root_el).append(' / ');
-        for (var i = 0,len = path_list.length; i < len; i++) {
-            if (i == len - 1) {
-                path_el.append(path_list[i] + ' /');
-            } else {
-                mid_path = path_list.slice(0, i+1).join('/');
-                el.html(mid_path).attr('href', el.attr('href') + mid_path + '/');
-                path_el.append(el).append(' / ');
-            }
-        }
-        // show 'share' btn
-        if ($('#share-cur-dir').length == 0) {
-            $('.repo-op').append('<button class="op-btn" id="share-cur-dir"><span class="sf-icon-share"></span>{% trans "Share"%}</button>');
-        // Todo: update 'share' button data ?
-        }
         return false;
     },
     togglePopup: function () {
@@ -359,27 +336,51 @@ var DirentView = Backbone.View.extend({
     }
 });
 
-var DirentsView = Backbone.View.extend({
+var LibView = Backbone.View.extend({
+    el: $('#repo-file-list'),
+    top_template: _.template($('#top-template').html()),
     initialize: function () {
+        this.dirent_list = this.$('.repo-file-list');
         this.listenTo(dirents, 'add', this.addOne);
         this.listenTo(dirents, 'reset', this.empty);
-        //dirents.fetch();
     },
-    render: function () {
+    renderTop: function () {
+        var path = dirents.path,
+            path_list = [];
+        if (path != '/') {
+            path_list = path.substr(1).split('/');
+        }
+        $('.repo-file-list-topbar').html(this.top_template({
+            path: path,
+            path_list: path_list
+        }));
     },
     addOne: function (dirent) {
         var view = new DirentView({model: dirent});
-        $('.repo-file-list').append(view.render().el);
+        this.dirent_list.append(view.render().el);
         if (dirent === _.last(dirents.models) &&
             !dirents.dirent_more) {
             $('.loading-tip').hide();
         }
     },
     empty: function () {
-        $('.repo-file-list tr:gt(0)').remove();
+        $('tr:gt(0)', this.dirent_list).remove();
+    },
+    events: {
+        'click .path-link':'visitDir'
+    },
+    visitDir: function () {
+        // show 'loading'
+        this.$('.path').append('<img src="{{MEDIA_URL}}img/loading-icon.gif" alt="" class="vam" />');
+        // empty all models
+        dirents.reset();
+        // update url & dirents
+        var path_link = event.target || event.srcElement;
+        router.navigate(path_link.pathname, {trigger: true}); // 'pathname': relative url
+        return false;
     }
 });
-var view = new DirentsView();
+var libView = new LibView();
 
 var LibRouter = Backbone.Router.extend({
     routes: {
@@ -392,6 +393,7 @@ var LibRouter = Backbone.Router.extend({
             path = '/' + path.substr(0, path.length - 1);
         }
         dirents.path = path;
+        libView.renderTop();
         dirents.fetch({
             data: {'p': path},
             success: function (collection, response, opts) {
