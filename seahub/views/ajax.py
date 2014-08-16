@@ -443,13 +443,10 @@ def get_lib_dirents(request, repo_id):
         f_['last_modified'] = f.last_modified
         f_['last_update'] = translate_seahub_time(f.last_modified)
         f_['starred'] = f.starred
-        f_['view_link'] = f.view_link
         f_['file_size'] = filesizeformat(f.file_size)
-        f_['dl_link'] = f.dl_link
         f_['obj_id'] = f.props.obj_id
         f_['sharelink'] = f.sharelink
         f_['sharetoken'] = f.sharetoken
-        f_['history_link'] = f.history_link
         dirent_list.append(f_)
 
     return HttpResponse(json.dumps({
