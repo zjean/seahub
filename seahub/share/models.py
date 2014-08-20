@@ -99,6 +99,28 @@ class FileShareManager(models.Manager):
     def get_valid_dir_link_by_token(self, token):
         return self._get_valid_file_share_by_token(token)
 
+    def delete_file_link(self, username, repo_id, file_path):
+        super(FileShareManager, self).filter(
+                username=username, repo_id=repo_id, path=file_path).delete()
+
+    def delete_dir_link(self, username, repo_id, dir_path):
+        # only delete this dir's shared link
+        super(FileShareManager, self).filter(
+                username=username, repo_id=repo_id, path=dir_path).delete()
+
+    def delete_dir_related_link(self, username, repo_id, dir_path):
+        # when delete a DIR, file/dir in this DIR will be deleted
+        # so, links of both DIR and these file/dir
+        # should be deleted at the same time
+        super(FileShareManager, self).filter(username=username,
+                repo_id=repo_id, path__startswith=dir_path).delete()
+
+    def delete_repo_related_link(self, username, repo_id):
+        # when delete a repo, file/dir in this repo will be deleted
+        # so, links of these file/dir should also be deleted
+        super(FileShareManager, self).filter(
+                username=username, repo_id=repo_id).delete()
+
 class FileShare(models.Model):
     """
     Model used for file or dir shared link.
@@ -175,6 +197,24 @@ class UploadLinkShareManager(models.Manager):
                 return None
             else:
                 return fs
+
+    def delete_dir_link(self, username, repo_id, dir_path):
+        # only delete this dir's shared link
+        super(UploadLinkShareManager, self).filter(
+                username=username, repo_id=repo_id, path=dir_path).delete()
+
+    def delete_dir_related_link(self, username, repo_id, dir_path):
+        # when delete a DIR, file/dir in this DIR will be deleted
+        # so, links of both DIR and these file/dir
+        # should be deleted at the same time
+        super(UploadLinkShareManager, self).filter(username=username,
+                repo_id=repo_id, path__startswith=dir_path).delete()
+
+    def delete_repo_related_link(self, username, repo_id):
+        # when delete a repo, file/dir in this repo will be deleted
+        # so, links of these file/dir should also be deleted
+        super(UploadLinkShareManager, self).filter(
+                username=username, repo_id=repo_id).delete()
 
 class UploadLinkShare(models.Model):
     """

@@ -435,7 +435,7 @@ def list_shared_links(request):
             fs.delete()
             continue
 
-        if fs.s_type == 'f':
+        if fs.is_file_share_link():
             if seafile_api.get_file_id_by_path(r.id, fs.path) is None:
                 fs.delete()
                 continue

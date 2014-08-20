@@ -41,6 +41,7 @@ from seahub.utils import check_filename_with_rename, EMPTY_SHA1, \
     get_repo_last_modify, gen_file_upload_url, is_org_context, \
     get_org_user_events, get_user_events
 from seahub.utils.star import star_file, unstar_file
+from seahub.share.models import FileShare, UploadLinkShare
 
 # Get an instance of a logger
 logger = logging.getLogger(__name__)
@@ -534,7 +535,19 @@ def delete_dirent(request, repo_id):
 
     # delete file/dir
     try:
+        # delete related shared links
+        path = parent_dir + dirent_name
+        if seafile_api.get_file_id_by_path(repo_id, path) is not None:
+            FileShare.objects.delete_file_link(username, repo_id, path)
+        elif seafile_api.get_dir_id_by_path(repo_id, path) is not None:
+            path = path + "/"
+            FileShare.objects.delete_dir_related_link(username,
+                                                      repo_id, path)
+            UploadLinkShare.objects.delete_dir_related_link(username,
+                                                            repo_id, path)
+
         seafile_api.del_file(repo_id, parent_dir, dirent_name, username)
+
         return HttpResponse(json.dumps({'success': True}),
                             content_type=content_type)
     except SearpcError, e:
@@ -575,8 +588,20 @@ def delete_dirents(request, repo_id):
     undeleted = []
     for dirent_name in dirents_names:
         try:
+            # delete related shared links
+            path = parent_dir + dirent_name
+            if seafile_api.get_file_id_by_path(repo_id, path) is not None:
+                FileShare.objects.delete_file_link(username, repo_id, path)
+            elif seafile_api.get_dir_id_by_path(repo_id, path) is not None:
+                path = path + "/"
+                FileShare.objects.delete_dir_related_link(username,
+                                                          repo_id, path)
+                UploadLinkShare.objects.delete_dir_related_link(username,
+                                                                repo_id, path)
+
             seafile_api.del_file(repo_id, parent_dir, dirent_name, username)
             deleted.append(dirent_name)
+
         except SearpcError, e:
             logger.error(e)
             undeleted.append(dirent_name)
@@ -1342,6 +1367,9 @@ def repo_remove(request, repo_id):
                               repo_id=repo_id,
                               repo_name=repo.name,
                               )    
+
+            FileShare.objects.delete_repo_related_link(username, repo_id)
+            UploadLinkShare.objects.delete_repo_related_link(username, repo_id)
             result['success'] = True
             return HttpResponse(json.dumps(result), content_type=ct)
         else:
@@ -1360,6 +1388,8 @@ def repo_remove(request, repo_id):
                               repo_id=repo_id,
                               repo_name=repo.name,
                           )
+            FileShare.objects.delete_repo_related_link(username, repo_id)
+            UploadLinkShare.objects.delete_repo_related_link(username, repo_id)
             result['success'] = True
             return HttpResponse(json.dumps(result), content_type=ct)
         else:
