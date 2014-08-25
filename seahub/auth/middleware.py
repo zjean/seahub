@@ -1,6 +1,10 @@
 from django.contrib import auth
 from django.core.exceptions import ImproperlyConfigured
-
+from django.core.cache import cache
+from django.http import HttpResponseRedirect
+from django.core.urlresolvers import reverse
+from seahub.options.models import UserOptions
+from seahub.settings import MEDIA_URL
 
 class LazyUser(object):
     def __get__(self, request, obj_type=None):
@@ -16,6 +20,37 @@ class AuthenticationMiddleware(object):
         request.__class__.user = LazyUser()
         return None
 
+class ForceChangePasswordMiddleware(object):
+    """
+    Redirects request from an authenticated user to the password change
+    page when user(who was added by admin or password has been reseted)
+    login for the first time.  Must be placed after ``AuthenticationMiddleware``
+    in the middleware list.
+    """
+    def get_from_db(self, username):
+        if UserOptions.objects.is_force_change_pwd_set(username):
+            # set TIMEOUT to None, cache keys never expire
+            cache.set(username + '_FORCE_CHANGE_PASSWORD', True, None)
+            return True
+        else:
+            cache.set(username + '_FORCE_CHANGE_PASSWORD', False, None)
+            return False
+
+    def process_request(self, request, *args, **kwargs):
+        if request.path[0:len(MEDIA_URL)] == MEDIA_URL:
+            return
+
+        username = request.user.username
+        redirect_to = reverse("auth_password_change")
+        if request.path != redirect_to:
+            if cache.get(username + '_FORCE_CHANGE_PASSWORD') is not None:
+                force_change_pwd = cache.get(username +
+                                    '_FORCE_CHANGE_PASSWORD')
+            else:
+                force_change_pwd = self.get_from_db(username)
+
+            if force_change_pwd:
+                return HttpResponseRedirect(redirect_to)
 
 class RemoteUserMiddleware(object):
     """
