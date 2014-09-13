@@ -419,7 +419,6 @@ def get_lib_dirents(request, repo_id):
         more_start = offset + 100
 
     dirent_list = []
-    view_dir_base = reverse('lib', kwargs={'repo_id': repo.id, 'path':''})
     for d in dir_list:
         d_ = {}
         d_['is_dir'] = True
@@ -427,8 +426,7 @@ def get_lib_dirents(request, repo_id):
         d_['last_modified'] = d.last_modified
         d_['last_update'] = translate_seahub_time(d.last_modified)
         p_dpath = posixpath.join(path, d.obj_name)
-        d_['view_link'] = view_dir_base + p_dpath[1:] + '/'
-        d_['dl_link'] = d.dl_link
+        d_['p_dpath'] = p_dpath # for 'view_link' & 'dl_link'
         d_['sharelink'] = d.sharelink
         d_['sharetoken'] = d.sharetoken
         d_['uploadlink'] = d.uploadlink
@@ -513,12 +511,13 @@ def new_dir(repo_id, parent_dir, dirent_name, username):
     # create new dirent
     try:
         seafile_api.post_dir(repo_id, parent_dir, dirent_name, username)
+        p_dpath = posixpath.join(parent_dir, dirent_name)
     except SearpcError, e:
         result['error'] = str(e)
         return HttpResponse(json.dumps(result), status=500,
                             content_type=content_type)
        
-    return HttpResponse(json.dumps({'success': True, 'name': dirent_name}),
+    return HttpResponse(json.dumps({'success': True, 'name': dirent_name, 'p_dpath': p_dpath}),
                         content_type=content_type)
 
 @login_required_ajax
@@ -597,7 +596,9 @@ def rename_dirent(request, repo_id):
         return HttpResponse(json.dumps(result), status=500,
                             content_type=content_type)
 
-    return HttpResponse(json.dumps({'success': True}),
+    p_dpath = posixpath.join(parent_dir, newname) # for dir
+
+    return HttpResponse(json.dumps({'success': True, 'newname': newname, 'p_dpath': p_dpath}),
                         content_type=content_type)
 
 @login_required_ajax    
