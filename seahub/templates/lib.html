@@ -691,6 +691,7 @@ var LibView = Backbone.View.extend({
         'click th.select':'select',
         'click #by-name':'sortByName',
         'click #by-time':'sortByTime',
+        'click #del-dirents':'delete',
         'click #mv-dirents':'mv',
         'click #cp-dirents':'cp'
     },
@@ -905,6 +906,74 @@ var LibView = Backbone.View.extend({
         dirents.sort();
         el.toggleClass('icon-caret-up icon-caret-down');
     },
+    delete: function () {
+        $('#confirm-popup').modal({appendTo:'#main'});
+        $('#simplemodal-container').css({'height':'auto'});
+        $('#confirm-con').html('<h3>' + "{% trans "Delete Items" %}" + '</h3><p>' + "{% trans "Are you sure you want to delete these selected items?" %}" + '</p>');
+        var del_dirents = function() {
+            $('#confirm-popup').append('<p style="color:red;">' + "{% trans "Processing..." %}" + '</p>');
+            var selected_dirents = dirents.where({'selected':true}),
+                selected_names = [];
+            $(selected_dirents).each(function() {
+                selected_names.push(this.get('obj_name'));
+            });
+            $.ajax({
+                url: '{% url 'delete_dirents' repo.id %}' + '?parent_dir=' + e(dirents.path),
+                type: 'POST',
+                dataType: 'json',
+                beforeSend: prepareCSRFToken,
+                traditional: true,
+                data: {
+                    'dirents_names': selected_names
+                },
+                success: function(data) {
+                    var del_len = data['deleted'].length,
+                        not_del_len = data['undeleted'].length,
+                        msg_s, msg_f;
+
+                    if (del_len > 0) {
+                        if (del_len == selected_names.length) {
+                            dirents.remove(selected_dirents);
+                        } else {
+                            $(selected_dirents).each(function() {
+                                if (this.get('obj_name') in data['deleted']) {
+                                    dirents.remove(this);
+                                }
+                            });
+                        }
+                        if (del_len == 1) {
+                            msg_s = "{% trans "Successfully deleted %(name)s." %}";
+                        } else if (del_len == 2) {
+                            msg_s = "{% trans "Successfully deleted %(name)s and 1 other item." %}";
+                        } else {
+                            msg_s = "{% trans "Successfully deleted %(name)s and %(amount)s other items." %}";
+                        }
+                        msg_s = msg_s.replace('%(name)s', data['deleted'][0]).replace('%(amount)s', del_len - 1);
+                        feedback(msg_s, 'success');
+                    }
+
+                    if (not_del_len > 0) {
+                        if (not_del_len == 1) {
+                            msg_f = "{% trans "Internal error. Failed to delete %(name)s." %}"
+                        } else if (not_del_len == 2) {
+                            msg_f = "{% trans "Internal error. Failed to delete %(name)s and 1 other item." %}"
+                        } else {
+                            msg_f = "{% trans "Internal error. Failed to delete %(name)s and %(amount)s other items." %}"
+                        }
+                        msg_f = msg_f.replace('%(name)s', data['undeleted'][0]).replace('%(amount)s', not_del_len - 1);
+                        feedback(msg_f, 'error');
+                    }
+                    $.modal.close();
+                    $('#dirents-op').addClass('hide');
+                },
+                error: function(xhr, textStatus, errorThrown) {
+                    $.modal.close();
+                    ajaxErrorHandler(xhr, textStatus, errorThrown);
+                }
+            });
+        };
+        $('#confirm-yes').unbind().click(del_dirents);
+    },
     mv: function () {
         this.mvcp({'op':'mv'});
     },
@@ -926,12 +995,12 @@ var LibView = Backbone.View.extend({
         var dirs = dirents.where({'is_dir':true, 'selected':true}),
             files = dirents.where({'is_file':true, 'selected':true});
         var dir_names = [], file_names = [];
-        for (var i = 0, len = dirs.length; i < len; i++) {
-            dir_names.push(dirs[i].get('obj_name'));
-        }
-        for (var i = 0, len = files.length; i < len; i++) {
-            file_names.push(files[i].get('obj_name'));
-        }
+        $(dirs).each(function() {
+            dir_names.push(this.get('obj_name'));
+        });
+        $(files).each(function() {
+            file_names.push(this.get('obj_name'));
+        });
         form.submit(function() {
             var dst_repo = $('[name="dst_repo"]', form).val(),
                 dst_path = $('[name="dst_path"]', form).val(),
@@ -979,16 +1048,16 @@ var LibView = Backbone.View.extend({
                                     dirents.remove(dirs);
                                     dirents.remove(files);
                                 } else {
-                                    for (var i = 0, len = dirs.length; i < len; i++) {
-                                        if (dirs[i].get('obj_name') in data['success']) {
-                                            dirents.remove(dirs[i]);
+                                    $(dirs).each(function() {
+                                        if (this.get('obj_name') in data['success']) {
+                                            dirents.remove(this);
                                         }
-                                    }
-                                    for (var i = 0, len = files.length; i < len; i++) {
-                                        if (files[i].get('obj_name') in data['success']) {
-                                            dirents.remove(files[i]);
+                                    });
+                                    $(files).each(function() {
+                                        if (this.get('obj_name') in data['success']) {
+                                            dirents.remove(this);
                                         }
-                                    }
+                                    });
                                 }
                                 if (success_len == 1) {
                                     msg_s = "{% trans "Successfully moved %(name)s." %}";
@@ -1006,7 +1075,7 @@ var LibView = Backbone.View.extend({
                                     msg_s = "{% trans "Successfully copied %(name)s and %(amount)s other items." %}";
                                 }
                             }
-                            msg_s = msg_s.replace('%(name)s', data['success'][0]).replace('%(amount)s', data['success'].length - 1);
+                            msg_s = msg_s.replace('%(name)s', data['success'][0]).replace('%(amount)s', success_len - 1);
                             msg_s += ' <a href="' + view_url + '">' + "{% trans "View" %}" + '</a>';
                             feedback(msg_s, 'success');
                         }
