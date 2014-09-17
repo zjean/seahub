@@ -205,6 +205,42 @@
         <button id="cancel-mv">{% trans "Cancel" %}</button>
     </div>
 
+    <div id="update-file-dialog" class="hide">
+        <h3 class="hd">{% trans "Update %(file_name)s" %}</h3>
+        {% if no_quota %}
+        <p class="error">{% trans "The owner of this library has run out of space." %}</p>
+        {% else %}
+        <form id="update-file-form" enctype="multipart/form-data" method="post" action="">{% csrf_token %}
+            <input type="hidden" name="target_file" />
+
+            {% if repo.enc_version == 2 and not server_crypto and repo.encrypted %}
+            <input type="file" name="file" /><br />
+            <p class="error hide">{% trans "Please select a file at first." %}</p>
+            <input type="button" value="{% trans "Submit" %}" />
+            {% else %}
+
+            <div class="fileupload-buttonbar">
+                <span class="fileinput-button vam">
+                    <span>{% trans "Choose a file" %}</span>
+                    <input type="file" name="file" />
+                </span>
+                {% if max_upload_file_size %}
+                <span class="vam">({% blocktrans with max_file_size=max_upload_file_size|filesizeformat %}Smaller than {{ max_file_size }}{% endblocktrans %})</span>
+                {% endif %}
+                <div class="fileupload-progress fade">
+                    <div class="progress progress-success progres-striped active">
+                        <div class="bar" style="width:0%"></div>
+                    </div>
+                    <div class="progress-extended"></div>
+                </div>
+                <p class="saving-tip alc hide"><img src="{{MEDIA_URL}}img/loading-icon.gif" alt="" style="margin-right:5px;" class="vam" />{% trans "Saving..." %}</p>
+            </div>
+            <table class="table table-striped"><tbody class="files" data-toggle="modal-gallery" data-target="#modal-gallery"></tbody></table>
+            {% endif %}
+        </form>
+        {% endif %}
+    </div>
+
     {% if repo.enc_version == 2 and not server_crypto and repo.encrypted %}
     <form id="repo-decrypt-form" class="wide-panel hide">
         <p>{% trans "This library is encrypted. Please input the password if you want to browse it online. And the password will be kept in the browser for only 1 hour." %}</p>
@@ -429,7 +465,8 @@ var DirentView = Backbone.View.extend({
         'click .del': 'delete',
         'click .rename': 'rename',
         'click .mv': 'mvcp',
-        'click .cp': 'mvcp'
+        'click .cp': 'mvcp',
+        'click .file-update': 'updateFile'
     },
     highlight: function () {
         if (no_file_op_popup) {
@@ -445,7 +482,7 @@ var DirentView = Backbone.View.extend({
         var checkbox = this.$('.checkbox');
         checkbox.toggleClass('checkbox-checked');
         if (checkbox.hasClass('checkbox-checked')) {
-            this.model.set({'selected':true}, {silent:true}); // do not trigger the 'set' event.
+            this.model.set({'selected':true}, {silent:true}); // do not trigger the 'change' event.
         } else {
             this.model.set({'selected':false}, {silent:true});
         }
@@ -586,7 +623,7 @@ var DirentView = Backbone.View.extend({
                 new_name = data['newname'];
                 var now = new Date().getTime()/1000;
                 $.modal.close();
-                _this.model.set({
+                _this.model.set({ // it will trigger 'change' event
                     'obj_name': new_name,
                     'last_modified': now,
                     'last_update': "{% trans "Just now" %}",
@@ -642,6 +679,67 @@ var DirentView = Backbone.View.extend({
 
         form.data('op_obj', dirent);
         render_jstree_for_cur_path();
+        return false;
+    },
+    updateFile: function () {
+        var file_name = this.model.get('obj_name');
+        var form = $('#update-file-form');
+        var cur_path = dirents.path;
+        var upload_success = false;
+        var updated_file;
+        var this_model = this.model;
+        $('#update-file-dialog').modal({
+            focus:false,
+            containerCss: {width:600, height:$(window).height()/2},
+            onClose: function() {
+                $.modal.close();
+                if (upload_success) {
+                    var now = new Date().getTime()/1000;
+                    this_model.set({
+                        'obj_id': updated_file.id, // todo: 'id' need to be offered
+                        'last_modified': now,
+                        'last_update': "{% trans "Just now" %}",
+                        // for IE, no 'size'
+                        'file_size': updated_file.size != undefined ? filesizeformat(updated_file.size, 1) : ''
+                    });
+                }
+            }
+        });
+        $('.simplemodal-wrap').css({'overflow':'auto'}); // for ie
+
+        $('input[name="target_file"]', form).val(cur_path + file_name);
+        var hd = $('#update-file-dialog .hd');
+        hd.html(hd.html().replace('%(file_name)s', '<span class="op-target">' + file_name + '</span>'));
+
+        $.ajax({
+            url: '{% url 'get_file_op_url' repo.id %}?op_type=update',
+            cache: false,
+            dataType: 'json',
+            success: function(data) {
+                // Initialize the jQuery File Upload widget:
+                form.fileupload({
+                    url: data['url'], // no '?head=cmt_id'
+                    {% if max_upload_file_size %}
+                    maxFileSize: {{max_upload_file_size}}, // in bytes
+                    {% endif %}
+                    maxNumberOfFiles: 1 // only 1 file can be uploaded
+                })
+                .bind('fileuploaddone', function(e, data) {
+                    if (data.textStatus == 'success') {
+                        upload_success = true;
+                        updated_file = data.result[0];
+                    }
+                });
+
+                // Enable iframe cross-domain access via redirect option:
+                form.fileupload(
+                    'option',
+                    'redirect',
+                    window.location.href.replace(/\/repo\/[-a-z0-9]{36}\/.*/, '/media/cors/result.html?%s')
+                );
+            },
+            error: ajaxErrorHandler
+        });
         return false;
     }
 });
