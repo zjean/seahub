@@ -7,9 +7,6 @@
 <link rel="stylesheet" type="text/css" href="{{ MEDIA_URL }}css/select2.css?t=1393578720" />
 <style type="text/css">
 #footer { display:none; }
-{% if repo.encrypted and repo.enc_version == 2 and not server_crypto %}
-#main { display:none; }
-{% endif %}
 .repo-file-list-topbar .path { line-height:29px; }
 #repo-latest-commit { margin:-5px 0 10px; }
 .repo-op { margin-bottom:0; }
@@ -39,9 +36,6 @@
                 <span class="desc" title="{{repo.props.desc}}">{{ repo.props.desc|truncatechars:25 }}</span>
                 <span class="size split">{% trans 'Size: ' %}{{ repo_size|filesizeformat }}</span>
                 <span class="split">
-                    {% if show_repo_download_button %}
-                    <a href="{{ SITE_ROOT }}seafile_access_check/?repo_id={{repo.props.id}}" target="_blank">{% trans "Download" %}</a>
-                    {% endif %}
                     <a href="{% url 'seahub.views.repo_history' repo.id %}" class="normal"><img class="link-icon vam" src="{{ MEDIA_URL }}img/history.png" alt="" height="16" /><span class="vam">{% trans "History"%}</span></a>
                     {% if show_repo_settings %}
                     <a id="repo-setting-btn" href="{% url 'repo_settings' repo.id %}" class="normal"><img class="link-icon vam" src="{{ MEDIA_URL }}img/setting.png" alt="" /><span class="vam">{% trans "Settings" %}</span></a>
@@ -53,9 +47,6 @@
             </div>
     </div>
 
-    {% if repo.enc_version == 2 and not server_crypto and repo.encrypted %}
-    <div id="repo-file-list"></div>
-    {% else %}
     <div id="repo-file-list">
         <div class="repo-file-list-topbar ovhd"></div>
         <table class="repo-file-list">
@@ -72,7 +63,6 @@
             </tr>
         </table>
         <img class="loading-tip" src="{{MEDIA_URL}}img/loading-icon.gif" alt="{% trans 'Loading...' %}" />
-
         {% if user_perm == 'rw' %}
         <div id="dirents-op" class="hide"> {# should be in #repo-file-list #}
             <button id="del-dirents" title="{% trans "Delete" %}" class="op-icon-btn"><span class="icon-trash"></span></button>
@@ -81,7 +71,6 @@
         </div>
         {% endif %}
     </div>
-    {% endif %}
 
     {# popups starts #}
     <div id="upload-file-dialog" class="hide">
@@ -90,11 +79,6 @@
         <p class="error">{% trans "The owner of this library has run out of space." %}</p>
         {% else %}
         <form id="upload-file-form" enctype="multipart/form-data" method="post" action="">{% csrf_token %}
-            {% if repo.enc_version == 2 and not server_crypto and repo.encrypted %}
-            <input type="file" name="file" /><br />
-            <p class="error hide">{% trans "Please select a file at first." %}</p>
-            <input type="button" value="{% trans "Submit" %}" />
-            {% else %}
             <input type="hidden" name="parent_dir" value="" />
             <div class="row fileupload-buttonbar">
                 <div>
@@ -132,7 +116,6 @@
                 <p class="saving-tip alc hide"><img src="{{MEDIA_URL}}img/loading-icon.gif" alt="" style="margin-right:5px;" class="vam" />{% trans "Saving..." %}</p>
             </div>
             <table class="table table-striped"><tbody class="files" data-toggle="modal-gallery" data-target="#modal-gallery"></tbody></table>
-           {% endif %}
         </form>
         {% endif %}
     </div>
@@ -170,8 +153,7 @@
         <button class="simplemodal-close">{% trans "Cancel" %}</button>
     </form>
 
-
-    {% include "snippets/file_share_popup.html" %} {# dir/file share popup #}
+    {% include "snippets/file_share_popup.html" %} {# dir/file share popup, need ENABLE_SUB_LIBRARY #}
 
     <form id="rename-form" action="" method="post" class="hide">{% csrf_token %}
         <h3></h3>
@@ -217,13 +199,6 @@
         {% else %}
         <form id="update-file-form" enctype="multipart/form-data" method="post" action="">{% csrf_token %}
             <input type="hidden" name="target_file" />
-
-            {% if repo.enc_version == 2 and not server_crypto and repo.encrypted %}
-            <input type="file" name="file" /><br />
-            <p class="error hide">{% trans "Please select a file at first." %}</p>
-            <input type="button" value="{% trans "Submit" %}" />
-            {% else %}
-
             <div class="fileupload-buttonbar">
                 <span class="fileinput-button vam">
                     <span>{% trans "Choose a file" %}</span>
@@ -241,22 +216,9 @@
                 <p class="saving-tip alc hide"><img src="{{MEDIA_URL}}img/loading-icon.gif" alt="" style="margin-right:5px;" class="vam" />{% trans "Saving..." %}</p>
             </div>
             <table class="table table-striped"><tbody class="files" data-toggle="modal-gallery" data-target="#modal-gallery"></tbody></table>
-            {% endif %}
         </form>
         {% endif %}
     </div>
-
-    {% if repo.enc_version == 2 and not server_crypto and repo.encrypted %}
-    <form id="repo-decrypt-form" class="wide-panel hide">
-        <p>{% trans "This library is encrypted. Please input the password if you want to browse it online. And the password will be kept in the browser for only 1 hour." %}</p>
-        <label>{% trans "Password: " %}</label>
-        <input type="password" name="password" autofocus />
-        <input type="submit" value="{% trans "Submit" %}" />
-        <p class="error hide"></p>
-        {% url 'edit_profile' as profile_edit_url %}
-        <p class="tip" style="margin-top:3em;">{% blocktrans %}You can change how to view encrypted libraries online <a class="normal" href="{{ profile_edit_url }}#enc-lib-setting">here</a>.{% endblocktrans %}</p>
-    </form>
-{% endif %}
 
 {% endblock %}
 
@@ -276,12 +238,9 @@
 
     <div class="repo-op fright">
         {% if user_perm == 'rw' %}
-        <button id="upload-file" class="op-btn">{% trans "Upload"%}</button>
-        <button id="add-new-dir" class="op-btn">{% trans "New Directory"%}</button>
-        {% if repo.encrypted and repo.enc_version == 2 and not server_crypto %}
-        {% else %}
-        <button id="add-new-file" class="op-btn">{% trans "New File"%}</button>
-        {% endif %}
+        <button id="upload-file" class="op-btn">{% trans "Upload" %}</button>
+        <button id="add-new-dir" class="op-btn">{% trans "New Directory" %}</button>
+        <button id="add-new-file" class="op-btn">{% trans "New File" %}</button>
         {% endif %}
 
         <% if (path != '/') { %>
@@ -341,11 +300,7 @@
             </td>
             <td class="dirent-icon"><img src="{{ MEDIA_URL }}img/file/<%= dirent.file_icon %>" alt="{% trans "File" %}" /></td>
             <td>
-                {% if repo.encrypted and repo.enc_version == 2 and not server_crypto %}
-                <span class="dirent-name"><%= dirent.obj_name %></span>
-                {% else %}
                 <span class="dirent-name"><a class="normal" href="{{SITE_ROOT}}repo/{{repo.id}}/files/?p=<% print(e(path + dirent.obj_name)); %>" target="_blank"><%= dirent.obj_name %></a></span>
-                {% endif %}
             </td>
             <td class="dirent-size"><%= dirent.file_size %></td>
             <td class="dirent-update">
@@ -358,7 +313,7 @@
             <td class="dirent-op">
                 <div class="repo-file-op vh">
                     <div class="displayed-op">
-                        <a class="op download" href="{{SITE_ROOT}}repo/{{repo.id}}/<%= dirent.obj_id %>/?file_name=<% print(e(dirent.obj_name)); %>&op=download" title="{% trans "Download" %}"><img src="{{MEDIA_URL}}img/download.png" alt="" /></a>
+                        <a class="op download" href="{{SITE_ROOT}}repo/{{repo.id}}/<%= dirent.obj_id %>/download/?p=<% print(e(path+dirent.obj_name)); %>" title="{% trans "Download" %}"><img src="{{MEDIA_URL}}img/download.png" alt="" /></a>
                         {% if not repo.encrypted %}
                         <a class="op share" href="#" data-link="<%= dirent.sharelink %>" data-token="<%= dirent.sharetoken %>" title="{% trans "Share" %}"><img src="{{MEDIA_URL}}img/dirent_share.png" alt="" /></a>
                         {% endif %}
@@ -380,9 +335,6 @@
 </script>
 <script type="text/javascript" src="{{MEDIA_URL}}js/underscore-min.js"></script>
 <script type="text/javascript" src="{{MEDIA_URL}}js/backbone-min.js"></script>
-{% if repo.enc_version == 2 and not server_crypto and repo.encrypted %}
-<script type="text/javascript" src="{{MEDIA_URL}}js/repo_crypto.js"></script>
-{% else %}
 {% upload_js %}
 <script type="text/javascript">
 $(function() {
@@ -405,15 +357,12 @@ window.locale = {
     }
 };
 </script>
-{% endif %}
 <script type="text/javascript">
 // global var
 var no_file_op_popup = true;
 var popup_tr;
 
 var Dirent = Backbone.Model.extend({
-    defaults: {
-    }
 });
 
 var Dirents = Backbone.Collection.extend({
@@ -430,7 +379,7 @@ var Dirents = Backbone.Collection.extend({
                 'p': this.path,
                 'start': this.more_start
             },
-            error: function(xhr, textStatus, errorThrown) { // is this interaction ok ?
+            error: function(xhr, textStatus, errorThrown) {
                 $('.loading-tip').hide();
                 ajaxErrorHandler(xhr, textStatus, errorThrown);
             }
@@ -559,18 +508,15 @@ var DirentView = Backbone.View.extend({
     share: function () {
         var op = this.$('.share'),
             name = this.model.get('obj_name');
-
         var cur_path = dirents.path;
         var ajax_urls = {
-            'link': '{% url 'get_shared_link' %}?repo_id={{ repo.id }}&p=' + e(cur_path) + e(name),
-            'upload-link': '{% url 'get_shared_upload_link' %}?repo_id={{ repo.id }}&p=' + e(cur_path) + e(name)
+            'link': '{% url 'get_shared_link' %}?repo_id={{ repo.id }}&p=' + e(cur_path + name),
+            'upload-link': '{% url 'get_shared_upload_link' %}?repo_id={{ repo.id }}&p=' + e(cur_path + name)
         };
-
         var type = this.model.get('is_dir') ? 'd' : 'f';
         if (type == 'd') {
             ajax_urls['link'] += '&type=d';
         }
-
         showSharePopup(op, name, ajax_urls, type, cur_path);
         return false;
     },
@@ -805,8 +751,6 @@ var LibView = Backbone.View.extend({
         return false;
     },
     uploadFile: function () {
-        {% if repo.enc_version == 2 and not server_crypto and repo.encrypted %}
-        {% else %}
         var uploaded_files = [], // [{'id':'', 'name':'', 'size':''}]
             sub_dirs = []; // for 'add folder'
         var dirent_list = this.dirent_list;
@@ -936,7 +880,6 @@ var LibView = Backbone.View.extend({
             form.append('<p class="error">' + "{% trans "Error. Please try later." %}" + '</p>');
             setTimeout(function() { $.modal.close(); }, 1600);
         }
-        {% endif %}
     },
     newDir: function () {
         var form = $('#add-new-dir-form'),
@@ -1097,6 +1040,7 @@ var LibView = Backbone.View.extend({
                     if (del_len > 0) {
                         if (del_len == selected_names.length) {
                             dirents.remove(selected_dirents);
+                            $('th .checkbox').removeClass('checkbox-checked');
                         } else {
                             $(selected_dirents).each(function() {
                                 if (this.get('obj_name') in data['deleted']) {
@@ -1149,7 +1093,7 @@ var LibView = Backbone.View.extend({
         $('#simplemodal-container').css({'width':'auto', 'height':'auto'});
 
         var op = params.op,
-            form_hd = op == 'mv' ? "{% trans "Move selected directories/files to:" %}" : "{% trans "Copy selected directories/files to:" %}"; //todo: any better hd ?
+            form_hd = op == 'mv' ? "{% trans "Move selected item(s) to:" %}" : "{% trans "Copy selected item(s) to:" %}";
         form.prepend('<h3>' + form_hd + '</h3>');
 
         render_jstree_for_cur_path();
@@ -1246,13 +1190,13 @@ var LibView = Backbone.View.extend({
                         if (data['failed'].length > 0) {
                             if (op == 'mv') {
                                 if (data['failed'].length > 1) {
-                                    msg_f = "{% trans "Internal error. Failed to move %(name)s and %(amount)s other items." %}";
+                                    msg_f = "{% trans "Internal error. Failed to move %(name)s and %(amount)s other item(s)." %}";
                                 } else {
                                     msg_f = "{% trans "Internal error. Failed to move %(name)s." %}";
                                 }
                             } else {
                                 if (data['failed'].length > 1) {
-                                    msg_f = "{% trans "Internal error. Failed to copy %(name)s and %(amount)s other items." %}";
+                                    msg_f = "{% trans "Internal error. Failed to copy %(name)s and %(amount)s other item(s)." %}";
                                 } else {
                                     msg_f = "{% trans "Internal error. Failed to copy %(name)s." %}";
                                 }
@@ -1614,7 +1558,6 @@ $('#mv-form').submit(function() {
                 if (op=='mv') {
                     op_obj.remove();
                 }
-                //updateCmt();
                 feedback(msg, 'success');
             } else {
                 var details = $('#mv-details'),
@@ -1754,7 +1697,6 @@ $(function() {
     // for file private share
     $.getScript('{{ MEDIA_URL }}js/select2.min.js');
 });
-// for 'share'. Todo: improve code
 {% include "snippets/shared_link_js.html" %}
 </script>
 {% endblock %}
