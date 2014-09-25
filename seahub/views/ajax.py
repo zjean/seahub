@@ -450,7 +450,7 @@ def get_lib_dirents(request, repo_id):
         f_['last_update'] = translate_seahub_time(f.last_modified)
         f_['starred'] = f.starred
         f_['file_size'] = filesizeformat(f.file_size)
-        f_['obj_id'] = f.props.obj_id
+        f_['obj_id'] = f.obj_id
         f_['sharelink'] = f.sharelink
         f_['sharetoken'] = f.sharetoken
         dirent_list.append(f_)

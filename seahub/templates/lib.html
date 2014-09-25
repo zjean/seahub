@@ -764,9 +764,8 @@ var LibView = Backbone.View.extend({
                 $.modal.close();
                 var now = new Date().getTime()/1000;
                 if (uploaded_files.length > 0) {
-                    var file, file_size;
-                    for (var i = 0, len = uploaded_files.length; i < len; i++) {
-                        file =  uploaded_files[i];
+                    $(uploaded_files).each(function() {
+                        var file = this;
                         dirents.add({
                             'is_file': true,
                             'obj_name': file.name,
@@ -779,7 +778,7 @@ var LibView = Backbone.View.extend({
                             'sharelink': '',
                             'sharetoken': ''
                         });
-                    }
+                    });
                 }
                 if (sub_dirs.length > 0) {
                     $(sub_dirs).each(function() {
