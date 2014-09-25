@@ -368,6 +368,7 @@ def get_lib_dirents(request, repo_id):
         get lib dirents in json
     '''
     content_type = 'application/json; charset=utf-8'
+    result = {}
 
     repo = get_repo(repo_id)
     if not repo:
@@ -382,14 +383,7 @@ def get_lib_dirents(request, repo_id):
         return HttpResponse(json.dumps({'error': err_msg}),
                             status=403, content_type=content_type)
 
-    sub_lib_enabled = UserOptions.objects.is_sub_lib_enabled(username)
-
-    try:
-        server_crypto = UserOptions.objects.is_server_crypto(username)
-    except CryptoOptionNotSetError:
-        # Assume server_crypto is ``False`` if this option is not set.
-        server_crypto = False
-
+    server_crypto = True
     if repo.encrypted and \
             (repo.enc_version == 1 or (repo.enc_version == 2 and server_crypto)) \
             and not seafile_api.is_password_set(repo.id, username):
@@ -403,11 +397,6 @@ def get_lib_dirents(request, repo_id):
         return HttpResponse(json.dumps({'error': err_msg}),
                             status=500, content_type=content_type)
 
-    if new_merge_with_no_conflict(head_commit):
-        info_commit = get_commit_before_new_merge(head_commit)
-    else:
-        info_commit = head_commit
-
     path = request.GET.get('p', '/')
     if path[-1] != '/':
         path = path + '/'
@@ -417,6 +406,25 @@ def get_lib_dirents(request, repo_id):
     more_start = None
     if dirent_more:
         more_start = offset + 100
+
+    result["dirent_more"] = dirent_more
+    result["more_start"] = more_start
+
+    if path != '/' and not repo.encrypted:
+        fileshare = get_fileshare(repo.id, username, path)
+        dir_shared_link = get_dir_share_link(fileshare)
+        uploadlink = get_uploadlink(repo.id, username, path)
+        dir_shared_upload_link = get_dir_shared_upload_link(uploadlink)
+
+        token = fileshare.token if fileshare is not None else ''
+        upload_token = uploadlink.token if uploadlink is not None else ''
+
+        result["share"] = {
+            "link": dir_shared_link,
+            "token": token,
+            "upload_link": dir_shared_upload_link,
+            "upload_token": upload_token
+        }
 
     dirent_list = []
     for d in dir_list:
@@ -447,11 +455,9 @@ def get_lib_dirents(request, repo_id):
         f_['sharetoken'] = f.sharetoken
         dirent_list.append(f_)
 
-    return HttpResponse(json.dumps({
-        "dirent_list": dirent_list,
-        "dirent_more": dirent_more,
-        "more_start": more_start
-        }), content_type=content_type)
+    result["dirent_list"] = dirent_list
+
+    return HttpResponse(json.dumps(result), content_type=content_type)
 
 
 def new_dirent_common(func):

@@ -370,14 +370,6 @@ def lib(request, repo_id, path=None):
         repo_group_str = ''
     '''
 
-    # for cur dir share
-    '''
-    fileshare = get_fileshare(repo.id, username, path)
-    dir_shared_link = get_dir_share_link(fileshare)
-    uploadlink = get_uploadlink(repo.id, username, path)
-    dir_shared_upload_link = get_dir_shared_upload_link(uploadlink)
-    '''
-
     return render_to_response('lib.html', {
             'repo': repo,
             'user_perm': user_perm,
@@ -395,11 +387,6 @@ def lib(request, repo_id, path=None):
             'fileserver_root': fileserver_root,
             'protocol': protocol,
             'domain': domain,
-            #'fileshare': fileshare,
-            #'dir_shared_link': dir_shared_link,
-            #'uploadlink': uploadlink,
-            #'dir_shared_upload_link': dir_shared_upload_link,
-
             'ENABLE_SUB_LIBRARY': ENABLE_SUB_LIBRARY,
             #'server_crypto': server_crypto,
             }, context_instance=RequestContext(request))

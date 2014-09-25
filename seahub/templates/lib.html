@@ -245,7 +245,7 @@
 
         <% if (path != '/') { %>
         {% if not repo.encrypted %}
-        <button class="op-btn" id="share-cur-dir">{% trans "Share" %}</button>
+        <button class="op-btn" id="share-cur-dir" data-link="<%= share.link %>" data-token="<%= share.token %>" data-upload-link="<%= share.upload_link %>" data-upload-token="<%= share.upload_token %>" data-url="{% url 'get_shared_link' %}?repo_id={{ repo.id }}&type=d&p=<% print(e(path)); %>" data-upload-url="{% url 'get_shared_upload_link' %}?repo_id={{ repo.id }}&p=<% print(e(path)); %>">{% trans "Share" %}</button>
         {% endif %}
         <% } %>
     </div>
@@ -371,6 +371,7 @@ var Dirents = Backbone.Collection.extend({
     parse: function (data) {
         this.dirent_more = data.dirent_more;
         this.more_start = data.more_start;
+        this.share = data.share;
         return data.dirent_list; // return the array
     },
     more: function () {
@@ -710,7 +711,8 @@ var LibView = Backbone.View.extend({
         }
         $('.repo-file-list-topbar').html(this.top_template({
             path: path,
-            path_list: path_list
+            path_list: path_list,
+            share: dirents.share
         }));
     },
     addOne: function (dirent) {
@@ -733,6 +735,7 @@ var LibView = Backbone.View.extend({
         'click #upload-file':'uploadFile',
         'click #add-new-dir':'newDir',
         'click #add-new-file':'newFile',
+        'click #share-cur-dir':'share',
         'click th.select':'select',
         'click #by-name':'sortByName',
         'click #by-time':'sortByTime',
@@ -961,6 +964,18 @@ var LibView = Backbone.View.extend({
             setCaretPos(file_name[0], 0);
             file_name.focus();
         });
+    },
+    share: function () {
+        var op = this.$('#share-cur-dir'),
+            name, aj_urls, type;
+        var cur_path = dirents.path;
+        name = cur_path.substr(cur_path.lastIndexOf('/') + 1);
+        aj_urls = {
+            'link': op.data('url'),
+            'upload-link': op.data('upload-url')
+        };
+        type = 'd';
+        showSharePopup(op, name, aj_urls, type, cur_path);
     },
     select: function () {
         var checkbox = $('th .checkbox');
@@ -1353,10 +1368,10 @@ var LibRouter = Backbone.Router.extend({
             path = '/' + path.substr(0, path.length - 1);
         }
         dirents.path = path;
-        libView.renderTop();
         dirents.fetch({
             data: {'p': path},
             success: function (collection, response, opts) {
+                libView.renderTop();
                 // the dir is empty
                 if (response.dirent_list.length == 0) {
                     $('.loading-tip').hide();
