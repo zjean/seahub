@@ -41,7 +41,8 @@ from seahub.utils import check_filename_with_rename, EMPTY_SHA1, \
     new_merge_with_no_conflict, get_commit_before_new_merge, \
     get_repo_last_modify, gen_file_upload_url, is_org_context, \
     get_org_user_events, get_user_events
-from seahub.utils.star import star_file, unstar_file
+from seahub.utils.star import star_file, unstar_file, is_file_starred, \
+        get_dir_starred_files
 
 # Get an instance of a logger
 logger = logging.getLogger(__name__)
@@ -666,6 +667,12 @@ def mv_file(src_repo_id, src_path, dst_repo_id, dst_path, obj_name, username):
         return HttpResponse(json.dumps(result), status=500,
                         content_type=content_type)
 
+    src_file = os.path.join(src_path, obj_name)
+    dst_file = os.path.join(dst_path, obj_name)
+    if is_file_starred(username, src_repo_id, src_file):
+        star_file(username, dst_repo_id, dst_file, False)
+        unstar_file(username, src_repo_id, src_file)
+
     result['success'] = True
     msg_url = reverse('repo', args=[dst_repo_id]) + '?p=' + urlquote(dst_path)
     msg = _(u'Successfully moved %(name)s <a href="%(url)s">view</a>') % \
@@ -732,7 +739,17 @@ def mv_dir(src_repo_id, src_path, dst_repo_id, dst_path, obj_name, username):
         result['error'] = _(u'Internal server error')
         return HttpResponse(json.dumps(result), status=500,
                         content_type=content_type)
-    
+
+    for src_starred_file in get_dir_starred_files(username,
+                                                  src_repo_id,
+                                                  src_path,
+                                                  -1):
+        dst_starred_file = dst_path + \
+                src_starred_file[len(src_path)-len(src_starred_file):]
+
+        star_file(username, dst_repo_id, dst_starred_file, False)
+        unstar_file(username, src_repo_id, src_starred_file)
+
     result['success'] = True
     msg_url = reverse('repo', args=[dst_repo_id]) + '?p=' + urlquote(dst_path)
     msg = _(u'Successfully moved %(name)s <a href="%(url)s">view</a>') % \
@@ -856,18 +873,45 @@ def mv_dirents(src_repo_id, src_path, dst_repo_id, dst_path, obj_file_names, obj
     success = []
     failed = []
     url = None
-    for obj_name in obj_file_names + obj_dir_names:
+    for obj_name in obj_file_names:
         new_obj_name = check_filename_with_rename(dst_repo_id, dst_path, obj_name)
         try:
-            res = seafile_api.move_file(src_repo_id, src_path, obj_name,
+            seafile_api.move_file(src_repo_id, src_path, obj_name,
                                   dst_repo_id, dst_path, new_obj_name, username, need_progress=1)
-        except SearpcError, e:
-            res = None
-
-        if not res:
-            failed.append(obj_name)
-        else:
             success.append(obj_name)
+        except SearpcError, e:
+            failed.append(obj_name)
+
+        src_dirent = os.path.join(src_path, obj_name)
+        dst_dirent = os.path.join(dst_path, obj_name)
+
+        # when moveing a file
+        if is_file_starred(username, src_repo_id, src_dirent):
+            star_file(username, dst_repo_id, dst_dirent, False)
+            unstar_file(username, src_repo_id, src_dirent)
+
+    for obj_name in obj_dir_names:
+        new_obj_name = check_filename_with_rename(dst_repo_id, dst_path, obj_name)
+        try:
+            seafile_api.move_file(src_repo_id, src_path, obj_name,
+                                  dst_repo_id, dst_path, new_obj_name, username, need_progress=1)
+            success.append(obj_name)
+        except SearpcError, e:
+            failed.append(obj_name)
+
+        src_dirent = os.path.join(src_path, obj_name)
+        dst_dirent = os.path.join(dst_path, obj_name)
+
+        # when moving a dir
+        for src_starred_file in get_dir_starred_files(username,
+                                                      src_repo_id,
+                                                      src_dirent,
+                                                      -1):
+            dst_starred_file = dst_dirent + \
+                    src_starred_file[len(src_dirent)-len(src_starred_file):]
+
+            star_file(username, dst_repo_id, dst_starred_file, False)
+            unstar_file(username, src_repo_id, src_starred_file)
 
     if len(success) > 0:   
         url = reverse('repo', args=[dst_repo_id]) + '?p=' + urlquote(dst_path)
