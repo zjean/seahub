@@ -80,6 +80,7 @@
         {% else %}
         <form id="upload-file-form" enctype="multipart/form-data" method="post" action="">{% csrf_token %}
             <input type="hidden" name="parent_dir" value="" />
+            <input type="hidden" name="relative_path" value="" />
             <div class="row fileupload-buttonbar">
                 <div>
                     <span class="fileinput-button vam" id="add-file">
@@ -644,7 +645,7 @@ var DirentView = Backbone.View.extend({
                 if (upload_success) {
                     var now = new Date().getTime()/1000;
                     this_model.set({
-                        'obj_id': updated_file.id, // todo: 'id' need to be offered
+                        'obj_id': updated_file.id,
                         'last_modified': now,
                         'last_update': "{% trans "Just now" %}",
                         // for IE, no 'size'
@@ -744,18 +745,32 @@ var LibView = Backbone.View.extend({
         'click #cp-dirents':'cp'
     },
     visitDir: function () {
+        var path_link = event.target || event.srcElement;
+        // when cur dir is root dir, and click the link on root dir in '.path'
+        if (path_link.pathname == location.pathname) { // 'router.navigate()' won't send request
+            //router.get_dirents();
+            return false;
+        }
         // show 'loading'
         this.$('.path').append('<img src="{{MEDIA_URL}}img/loading-icon.gif" alt="" class="vam" />');
         // empty all models
         dirents.reset();
         // update url & dirents
-        var path_link = event.target || event.srcElement;
         router.navigate(path_link.pathname, {trigger: true}); // 'pathname': relative url
         return false;
     },
     uploadFile: function () {
-        var uploaded_files = [], // [{'id':'', 'name':'', 'size':''}]
-            sub_dirs = []; // for 'add folder'
+        var uploaded_files = []; // [{'id':'', 'name':'', 'size':''}]
+
+        // for 'add folder'
+        var cur_dirs = dirents.where({'is_dir':true});
+        var cur_dir_names = [];
+        $(cur_dirs).each(function(index, cur_dir) {
+            cur_dir_names.push(cur_dir.get('obj_name'));
+        });
+        var update_dir_names = []; // dirs with 'time' to be updated
+        var new_dir_names = [];
+
         var dirent_list = this.dirent_list;
         $('#upload-file-dialog').modal({
             focus:false,
@@ -770,7 +785,7 @@ var LibView = Backbone.View.extend({
                             'is_file': true,
                             'obj_name': file.name,
                             'last_modified': now,
-                            'file_size': file.size != undefined ? filesizeformat(file.size, 1) : '',
+                            'file_size': filesizeformat(file.size, 1),
                             'obj_id': file.id,
                             'file_icon': 'file.png',
                             'last_update': "{% trans "Just now" %}",
@@ -780,15 +795,14 @@ var LibView = Backbone.View.extend({
                         });
                     });
                 }
-                if (sub_dirs.length > 0) {
-                    $(sub_dirs).each(function() {
-                        var dir_name = this;
+                if (new_dir_names.length > 0) {
+                    $(new_dir_names).each(function(index, dir_name) {
                         var new_dirent = dirents.add({
                             'is_dir': true,
                             'obj_name': dir_name,
                             'last_modified': now,
                             'last_update': "{% trans "Just now" %}",
-                            'p_dpath': dirents.path + dir_name,
+                            'p_dpath': dirents.path + '/' + dir_name,
                             'sharelink': '',
                             'sharetoken': '',
                             'uploadlink': '',
@@ -796,6 +810,17 @@ var LibView = Backbone.View.extend({
                         }, {silent:true});
                         var view = new DirentView({model: new_dirent});
                         $('tr:first', dirent_list).after(view.render().el); // put the new dir as the first one
+                    });
+                }
+                if (update_dir_names.length > 0) {
+                    $(update_dir_names).each(function(index, dir_name) {
+                        dirents.where({
+                            'is_dir':true,
+                            'obj_name': dir_name
+                        })[0].set({
+                            'last_modified': now,
+                            'last_update': "{% trans "Just now" %}"
+                        });
                     });
                 }
             }
@@ -818,6 +843,11 @@ var LibView = Backbone.View.extend({
                     data.files.shift(); // rm the file
                     return;
                 }
+            })
+            .bind('fileuploadsubmit', function(e, data) {
+                var file = data.files[0];
+                var file_path = file.webkitRelativePath, // can be undefined, '', or a valid path
+                    r_path;
                 // get url(token) for every file
                 if (!file.error) {
                     $.ajax({
@@ -825,37 +855,40 @@ var LibView = Backbone.View.extend({
                         cache: false,
                         dataType: 'json',
                         success: function(ret) {
-                            data.url = ret['url'];
+                            if (file_path) { // 'add folder'
+                                r_path = file_path.substring(0, file_path.lastIndexOf('/') + 1);
+                            } else {
+                                r_path = '';
+                            }
+                            $('input[name="relative_path"]', form).val(r_path);
+
+                            form.attr('action', ret['url']);
+                            data.jqXHR = form.fileupload('send', data);
                         },
                         error: function() {
                             file.error = "{% trans "Failed to get upload url" %}";
                         }
                     });
                 }
-            })
-            .bind('fileuploadsubmit', function(e, data) {
-                var file = data.files[0],
-                    r_path;
-                if (!file.error) {
-                    if (data.fileInput[0].webkitdirectory) { // 'add folder'
-                        var file_path = file.webkitRelativePath;
-                        r_path = file_path.substring(0, file_path.lastIndexOf('/') + 1);
-                    } else {
-                        r_path = '';
-                    }
-                    $('input[name="relative_path"]', form).val(r_path);
-                }
+                return false;
             })
             .bind('fileuploaddone', function(e, data) {
                 if (data.textStatus == 'success') {
-                    if (data.fileInput[0].webkitdirectory) { // 'add folder'
-                        var file = data.files[0];
-                        var file_path = file.webkitRelativePath;
-                        var sub_dir = file_path.substring(0, file_path.indexOf('/'));
-                        if (sub_dirs.indexOf(sub_dir) == -1) {
-                            sub_dirs.push(sub_dir);
+                    var file = data.files[0];
+                    var file_path = file.webkitRelativePath;
+                    if (file_path) { // 'add folder'
+                        var new_dir_name = file_path.substring(0, file_path.indexOf('/'));
+                        if (cur_dir_names.indexOf(new_dir_name) == -1) {
+                            if (new_dir_names.indexOf(new_dir_name) == -1) {
+                                new_dir_names.push(new_dir_name);
+                            }
+                        } else {
+                            if (update_dir_names.indexOf(new_dir_name) == -1) {
+                                update_dir_names.push(new_dir_name);
+                            }
                         }
-                        data.result[0].r_path = file.webkitRelativePath; // to show in 'template_download'
+
+                        data.result[0].r_path = file_path; // to show in 'template_download'
                     } else {
                         uploaded_files.push(data.result[0]);
                     }

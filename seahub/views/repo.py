@@ -292,7 +292,7 @@ def repo(request, repo_id):
                     }, context_instance=RequestContext(request))
 
 @login_required
-def lib(request, repo_id, path=None):
+def lib(request, repo_id, path):
 
     repo = get_repo(repo_id)
 
@@ -300,8 +300,8 @@ def lib(request, repo_id, path=None):
         raise Http404
 
     username = request.user.username
-    # path is None or something like 'bb/'
-    if path is None:
+    # path is '' or something like 'bb/'
+    if path is '':
         path = '/' # root
     else:
         path = '/' + path[:-1]
