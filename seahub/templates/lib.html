@@ -475,7 +475,7 @@ var DirentView = Backbone.View.extend({
         // empty all models
         dirents.reset();
         // update url & dirents
-        router.navigate(this.$('.dir-link')[0].pathname, {trigger: true}); // 'pathname': relative url
+        router.navigate(this.$('.dir-link')[0].pathname.substr('{{SITE_ROOT}}'.length - 1), {trigger: true}); // offer an url fragment
         return false;
     },
     togglePopup: function () {
@@ -756,7 +756,7 @@ var LibView = Backbone.View.extend({
         // empty all models
         dirents.reset();
         // update url & dirents
-        router.navigate(path_link.pathname, {trigger: true}); // 'pathname': relative url
+        router.navigate(path_link.pathname.substr('{{SITE_ROOT}}'.length - 1), {trigger: true}); // 'pathname': relative url
         return false;
     },
     uploadFile: function () {
