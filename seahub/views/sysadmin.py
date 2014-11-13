@@ -826,9 +826,9 @@ def sys_org_set_member_quota(request, org_id):
 
     content_type = 'application/json; charset=utf-8'
 
-    member_quota = request.POST.get('member_quota', None)
-    if member_quota and member_quota >= u'\u0030' and member_quota <= u'\u0039':
-        if int(member_quota) > 0:
+    try:
+        member_quota = int(request.POST.get('member_quota', '0'))
+        if member_quota > 0:
             OrgMemberQuota.objects.set_quota(org_id, member_quota)
             messages.success(request, _(u'Success'))
             return HttpResponse(json.dumps({'success': True}), status=200,
@@ -836,10 +836,9 @@ def sys_org_set_member_quota(request, org_id):
         else:
             return HttpResponse(json.dumps({ 'error': _('Input number should be greater than 1')}),
                                 status=400, content_type=content_type)
-    else:
+    except ValueError:
         return HttpResponse(json.dumps({ 'error': _('Input should be a number')}),
                             status=400, content_type=content_type)
-
 
 def sys_get_org_base_info(org_id):
 
