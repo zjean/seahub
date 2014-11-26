@@ -977,7 +977,9 @@ var LibView = Backbone.View.extend({
             var path = dirents.path;
             var post_url = '{% url 'new_file' repo.id %}?parent_dir=' + e(path);
             var after_op_success = function(data) {
-                // todo: 1) open the file? 2) if yes, change the url later
+                if (path.charAt(path.length - 1) != '/') {
+                    path += '/';
+                }
                 location.href = '{% url 'repo_view_file' repo.id %}?p=' + e(path) + e(data['name']);
             };
             ajaxPost({
