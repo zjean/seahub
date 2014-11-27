@@ -3,6 +3,7 @@ import os
 import stat
 import logging
 import json
+import posixpath
 
 from django.core.urlresolvers import reverse
 from django.http import HttpResponse, Http404, HttpResponseBadRequest
@@ -10,6 +11,7 @@ from django.template import RequestContext
 from django.template.loader import render_to_string
 from django.utils.http import urlquote
 from django.utils.translation import ugettext as _
+from django.template.defaultfilters import filesizeformat
 
 import seaserv
 from seaserv import seafile_api, seafserv_rpc, is_passwd_set, \
@@ -43,6 +45,7 @@ from seahub.utils import check_filename_with_rename, EMPTY_SHA1, \
     get_org_user_events, get_user_events
 from seahub.utils.star import star_file, unstar_file
 from seahub.base.accounts import User
+from seahub.base.templatetags.seahub_tags import translate_seahub_time, file_icon_filter
 
 # Get an instance of a logger
 logger = logging.getLogger(__name__)
@@ -368,6 +371,103 @@ def list_dir_more(request, repo_id):
     return HttpResponse(json.dumps({'html': html, 'dirent_more': dirent_more, 'more_start': more_start}),
                         content_type=content_type)
 
+@login_required_ajax        
+def get_lib_dirents(request, repo_id):
+    '''
+        get lib dirents in json
+    '''
+    content_type = 'application/json; charset=utf-8'
+    result = {}
+
+    repo = get_repo(repo_id)
+    if not repo:
+        err_msg = _(u'Library does not exist.')
+        return HttpResponse(json.dumps({'error': err_msg}),
+                            status=400, content_type=content_type)
+
+    username = request.user.username
+    user_perm = check_repo_access_permission(repo.id, request.user)
+    if user_perm is None:
+        err_msg = _(u'Permission denied.')
+        return HttpResponse(json.dumps({'error': err_msg}),
+                            status=403, content_type=content_type)
+
+    server_crypto = True
+    if repo.encrypted and \
+            (repo.enc_version == 1 or (repo.enc_version == 2 and server_crypto)) \
+            and not seafile_api.is_password_set(repo.id, username):
+        err_msg = _(u'Library is encrypted.')
+        return HttpResponse(json.dumps({'error': err_msg}),
+                            status=403, content_type=content_type)
+
+    head_commit = get_commit(repo.id, repo.version, repo.head_cmmt_id)
+    if not head_commit:
+        err_msg = _(u'Error: no head commit id')
+        return HttpResponse(json.dumps({'error': err_msg}),
+                            status=500, content_type=content_type)
+
+    path = request.GET.get('p', '/')
+    if path[-1] != '/':
+        path = path + '/'
+
+    offset = int(request.GET.get('start', 0))
+    file_list, dir_list, dirent_more = get_repo_dirents(request, repo, head_commit, path, offset, limit=100)
+    more_start = None
+    if dirent_more:
+        more_start = offset + 100
+
+    result["dirent_more"] = dirent_more
+    result["more_start"] = more_start
+
+    if path != '/' and not repo.encrypted:
+        fileshare = get_fileshare(repo.id, username, path)
+        dir_shared_link = get_dir_share_link(fileshare)
+        uploadlink = get_uploadlink(repo.id, username, path)
+        dir_shared_upload_link = get_dir_shared_upload_link(uploadlink)
+
+        token = fileshare.token if fileshare is not None else ''
+        upload_token = uploadlink.token if uploadlink is not None else ''
+
+        result["share"] = {
+            "link": dir_shared_link,
+            "token": token,
+            "upload_link": dir_shared_upload_link,
+            "upload_token": upload_token
+        }
+
+    dirent_list = []
+    for d in dir_list:
+        d_ = {}
+        d_['is_dir'] = True
+        d_['obj_name'] = d.obj_name
+        d_['last_modified'] = d.last_modified
+        d_['last_update'] = translate_seahub_time(d.last_modified)
+        p_dpath = posixpath.join(path, d.obj_name)
+        d_['p_dpath'] = p_dpath # for 'view_link' & 'dl_link'
+        d_['sharelink'] = d.sharelink
+        d_['sharetoken'] = d.sharetoken
+        d_['uploadlink'] = d.uploadlink
+        d_['uploadtoken'] = d.uploadtoken
+        dirent_list.append(d_)
+
+    for f in file_list:
+        f_ = {}
+        f_['is_file'] = True
+        f_['file_icon'] = file_icon_filter(f.obj_name)
+        f_['obj_name'] = f.obj_name
+        f_['last_modified'] = f.last_modified
+        f_['last_update'] = translate_seahub_time(f.last_modified)
+        f_['starred'] = f.starred
+        f_['file_size'] = filesizeformat(f.file_size)
+        f_['obj_id'] = f.obj_id
+        f_['sharelink'] = f.sharelink
+        f_['sharetoken'] = f.sharetoken
+        dirent_list.append(f_)
+
+    result["dirent_list"] = dirent_list
+
+    return HttpResponse(json.dumps(result), content_type=content_type)
+
 
 def new_dirent_common(func):
     """Decorator for common logic in creating directory and file.
@@ -426,12 +526,13 @@ def new_dir(repo_id, parent_dir, dirent_name, username):
     # create new dirent
     try:
         seafile_api.post_dir(repo_id, parent_dir, dirent_name, username)
+        p_dpath = posixpath.join(parent_dir, dirent_name)
     except SearpcError, e:
         result['error'] = str(e)
         return HttpResponse(json.dumps(result), status=500,
                             content_type=content_type)
        
-    return HttpResponse(json.dumps({'success': True, 'name': dirent_name}),
+    return HttpResponse(json.dumps({'success': True, 'name': dirent_name, 'p_dpath': p_dpath}),
                         content_type=content_type)
 
 @login_required_ajax
@@ -510,7 +611,9 @@ def rename_dirent(request, repo_id):
         return HttpResponse(json.dumps(result), status=500,
                             content_type=content_type)
 
-    return HttpResponse(json.dumps({'success': True, 'newname': newname}),
+    p_dpath = posixpath.join(parent_dir, newname) # for dir
+
+    return HttpResponse(json.dumps({'success': True, 'newname': newname, 'p_dpath': p_dpath}),
                         content_type=content_type)
 
 @login_required_ajax    

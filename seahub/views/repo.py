@@ -294,6 +294,106 @@ def repo(request, repo_id):
                     'next': next,
                     'force_server_crypto': FORCE_SERVER_CRYPTO,      
                     }, context_instance=RequestContext(request))
+
+@login_required
+def lib(request, repo_id, path):
+
+    repo = get_repo(repo_id)
+
+    if not repo:
+        raise Http404
+
+    username = request.user.username
+    # path is '' or something like 'bb/'
+    if path is '':
+        path = '/' # root
+    else:
+        path = '/' + path[:-1]
+    user_perm = check_repo_access_permission(repo.id, request.user)
+    if user_perm is None:
+        return render_to_response('repo_access_deny.html', {
+                'repo': repo,
+                }, context_instance=RequestContext(request))
+
+    server_crypto = True
+    if repo.encrypted:
+        '''
+        try:
+            server_crypto = UserOptions.objects.is_server_crypto(username)
+        except CryptoOptionNotSetError:
+            return render_to_response('options/set_user_options.html', {
+                    }, context_instance=RequestContext(request))
+        '''
+
+        if (repo.enc_version == 1 or (repo.enc_version == 2 and server_crypto)) \
+                and not is_password_set(repo.id, username):
+            return render_to_response('decrypt_repo_form.html', {
+                    'repo': repo,
+                    'next': get_next_url_from_request(request) or \
+                        reverse('repo', args=[repo.id]),
+                    'force_server_crypto': FORCE_SERVER_CRYPTO,
+                    }, context_instance=RequestContext(request))
+
+    # query context args
+    fileserver_root = get_fileserver_root()
+    max_upload_file_size = get_max_upload_file_size()
+
+    protocol = request.is_secure() and 'https' or 'http'
+    domain = RequestSite(request).domain
+
+    for g in request.user.joined_groups:
+        g.avatar = grp_avatar(g.id, 20)
+    '''
+    head_commit = get_commit(repo.id, repo.version, repo.head_cmmt_id)
+    if not head_commit:
+        raise Http404
+
+    if new_merge_with_no_conflict(head_commit):
+        info_commit = get_commit_before_new_merge(head_commit)
+    else:
+        info_commit = head_commit
+    '''
+
+    repo_size = get_repo_size(repo.id)
+    no_quota = is_no_quota(repo.id)
+    if is_org_context(request):
+        repo_owner = seafile_api.get_org_repo_owner(repo.id)
+    else:
+        repo_owner = seafile_api.get_repo_owner(repo.id)
+    is_repo_owner = True if repo_owner == username else False
+    if is_repo_owner and not repo.is_virtual:
+        show_repo_settings = True
+    else:
+        show_repo_settings = False
+    '''
+    repo_groups = get_shared_groups_by_repo_and_user(repo.id, username)
+    if len(repo_groups) > 1:
+        repo_group_str = render_to_string("snippets/repo_group_list.html",
+                                          {'groups': repo_groups})
+    else:
+        repo_group_str = ''
+    '''
+
+    return render_to_response('lib.html', {
+            'repo': repo,
+            'user_perm': user_perm,
+            'repo_owner': repo_owner,
+            'is_repo_owner': is_repo_owner,
+            'show_repo_settings': show_repo_settings,
+            #'current_commit': head_commit,
+            #'info_commit': info_commit,
+            'password_set': True,
+            'repo_size': repo_size,
+            #'groups': repo_groups,
+            #'repo_group_str': repo_group_str,
+            'no_quota': no_quota,
+            'max_upload_file_size': max_upload_file_size,
+            'fileserver_root': fileserver_root,
+            'protocol': protocol,
+            'domain': domain,
+            'ENABLE_SUB_LIBRARY': ENABLE_SUB_LIBRARY,
+            #'server_crypto': server_crypto,
+            }, context_instance=RequestContext(request))
     
 @login_required
 def repo_history_view(request, repo_id):

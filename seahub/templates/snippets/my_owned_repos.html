@@ -37,7 +37,7 @@
         {% else %}
         <td><img src="{{MEDIA_URL}}img/sync-folder-20.png?t=1387267140" title="{% trans "Read-Write" %}" alt="{% trans "directory icon" %}" /></td>
         {% endif %}
-        <td><a href="{% url 'repo' repo.props.id %}">{{ repo.props.name }}</a></td>
+        <td><a href="{% url 'lib' repo.id '' %}">{{ repo.name }}</a></td>
         <td>{{ repo.props.desc }}</td>
         {% if repo.latest_modify %}
         <td>{{ repo.latest_modify|translate_seahub_time }}</td>
@@ -80,7 +80,7 @@
         {% else %}
         <td><img src="{{MEDIA_URL}}img/sync-folder-20.png?t=1387267140" title="{% trans "Read-Write" %}" alt="{% trans "directory icon" %}" /></td>
         {% endif %}
-        <td><a href="{% url 'repo' repo.id %}">{{ repo.name }}</a></td>
+        <td><a href="{% url 'lib' repo.id '' %}">{{ repo.name }}</a></td>
         <td><a href="{{ SITE_ROOT }}repo/{{ repo.origin_repo_id}}/?p={{ repo.origin_path }}">{{ repo.abbrev_origin_path }}</a></td>
         {% if repo.latest_modify %}
         <td>{{ repo.latest_modify|translate_seahub_time }}</td>

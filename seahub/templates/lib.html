@@ -1,0 +1,1751 @@
+{% extends "myhome_base.html" %}
+
+{% load seahub_tags avatar_tags i18n upload_tags %}
+
+{% block sub_title %}{{repo.name}} - {% endblock %}
+{% block extra_style %}
+<link rel="stylesheet" type="text/css" href="{{ MEDIA_URL }}css/select2.css?t=1393578720" />
+<style type="text/css">
+#footer { display:none; }
+.repo-file-list-topbar .path { line-height:29px; }
+#repo-latest-commit { margin:-5px 0 10px; }
+.repo-op { margin-bottom:0; }
+.repo-op .op-btn { padding:5px 8px; }
+.dirent-op .download { margin-right:5px; }
+.repo-file-list .dirent-name {
+    width:350px;
+}
+.repo-file-list .dirent-size {
+    width:135px;
+}
+.repo-file-list .dirent-update {
+    width:142px;
+}
+.repo-file-list .dirent-op {
+    width:200px;
+}
+</style>    
+<!-- Shim to make HTML5 elements usable in older Internet Explorer versions -->
+<!--[if lt IE 9]><script src="{{ MEDIA_URL}}js/html5shiv.js"></script><![endif]-->
+{% endblock %}
+
+{% block main_panel %}
+    <div id="repo-top">
+        <h2 class="hd">{{repo.props.name}}{% if user_perm == 'r' %} <span class="tip vam">({% trans "Read-Only" %})</span>{% endif %}</h2>
+            <div id="repo-basic-info">
+                <span class="desc" title="{{repo.props.desc}}">{{ repo.props.desc|truncatechars:25 }}</span>
+                <span class="size split">{% trans 'Size: ' %}{{ repo_size|filesizeformat }}</span>
+                <span class="split">
+                    <a href="{% url 'seahub.views.repo_history' repo.id %}" class="normal"><img class="link-icon vam" src="{{ MEDIA_URL }}img/history.png" alt="" height="16" /><span class="vam">{% trans "History"%}</span></a>
+                    {% if show_repo_settings %}
+                    <a id="repo-setting-btn" href="{% url 'repo_settings' repo.id %}" class="normal"><img class="link-icon vam" src="{{ MEDIA_URL }}img/setting.png" alt="" /><span class="vam">{% trans "Settings" %}</span></a>
+                    {% endif %}
+                    {% if user_perm == 'rw' %}
+                    <a id="recycle-btn" href="{% url 'repo_recycle_view' repo.id %}" class="normal"><img class="link-icon vam" src="{{ MEDIA_URL }}img/lib_trash.png" alt="" /><span class="vam">{% trans "Trash"%}</span></a>
+                    {% endif %}
+                </span>
+            </div>
+    </div>
+
+    <div id="repo-file-list">
+        <div class="repo-file-list-topbar ovhd"></div>
+        <table class="repo-file-list">
+            <tr>
+                <th class="select">
+                    <span class="checkbox"><input type="checkbox" class="checkbox-orig" /></span>
+                </th>
+                <th class="star"></th>
+                <th class="dirent-icon"></th>
+                <th><span class="dirent-name">{% trans "Name"%} <span id="by-name" class="icon-caret-up cspt"></span></span></th>
+                <th class="dirent-size">{% trans "Size"%}</th>
+                <th class="dirent-update">{% trans "Last Update" %} <span id="by-time" class="icon-caret-down cspt"></span></th>
+                <th class="dirent-op">{% trans "Operations"%}</th>
+            </tr>
+        </table>
+        <img class="loading-tip" src="{{MEDIA_URL}}img/loading-icon.gif" alt="{% trans 'Loading...' %}" />
+        {% if user_perm == 'rw' %}
+        <div id="dirents-op" class="hide"> {# should be in #repo-file-list #}
+            <button id="del-dirents" title="{% trans "Delete" %}" class="op-icon-btn"><span class="icon-trash"></span></button>
+            <button id="mv-dirents" title="{% trans "Move" %}" class="op-icon-btn"><span class="icon-move"></span></button>
+            <button id="cp-dirents" title="{% trans "Copy" %}" class="op-icon-btn"><span class="icon-copy"></span></button>
+        </div>
+        {% endif %}
+    </div>
+
+    {# popups starts #}
+    <div id="upload-file-dialog" class="hide">
+        <h3>{% trans "Upload Files" %}</h3>
+        {% if no_quota %}
+        <p class="error">{% trans "The owner of this library has run out of space." %}</p>
+        {% else %}
+        <form id="upload-file-form" enctype="multipart/form-data" method="post" action="">{% csrf_token %}
+            <input type="hidden" name="parent_dir" value="" />
+            <input type="hidden" name="relative_path" value="" />
+            <div class="row fileupload-buttonbar">
+                <div>
+                    <span class="fileinput-button vam" id="add-file">
+                        <span class="icon-plus"></span>
+                        <span>{% trans "Add Files" %}</span>
+                        <input type="file" name="file" multiple />
+                    </span>
+                    <span class="fileinput-button vam" id="add-folder" style="display:none;">
+                        <span class="icon-plus"></span>
+                        <span>{% trans "Add folder" %}</span>
+                        <input type="file" name="file" multiple directory webkitdirectory />
+                    </span>
+                    <button type="submit" class="start vam">
+                        <span class="icon-upload"></span>
+                        <span>{% trans "Start All" %}</span>
+                    </button>
+                    <button type="reset" class="cancel vam">
+                        <span class="icon-ban-circle"></span>
+                        <span>{% trans "Cancel All" %}</span>
+                    </button>
+                </div>
+                <ol class="tip">
+                    <li>{% trans "Drag & Drop is supported for Chrome, Safari 5.0+, Firefox 4.0+, IE 10.0+" %}</li>
+                    {% if max_upload_file_size %}
+                    <li>{% blocktrans with max_file_size=max_upload_file_size|filesizeformat %}File size should be smaller than {{ max_file_size }}{% endblocktrans %}</li>
+                    {% endif %}
+                </ol>
+                <div class="fileupload-progress fade">
+                    <div class="progress progress-success progres-striped active">
+                        <div class="bar" style="width:0%"></div>
+                    </div>
+                    <div class="progress-extended"></div>
+                </div>
+                <p class="saving-tip alc hide"><img src="{{MEDIA_URL}}img/loading-icon.gif" alt="" style="margin-right:5px;" class="vam" />{% trans "Saving..." %}</p>
+            </div>
+            <table class="table table-striped"><tbody class="files" data-toggle="modal-gallery" data-target="#modal-gallery"></tbody></table>
+        </form>
+        {% endif %}
+    </div>
+
+    <form id="add-new-dir-form" action="" method="post" class="hide">{% csrf_token %}
+        <h3>{% trans "New Directory" %}</h3>
+        <label>{% trans "Directory Name" %}</label><br />
+        <input type="text" name="name" value="" class="input" maxlength="{{max_file_name}}"/><br />
+        <p class="error hide"></p>
+        <button type="submit" class="submit">{% trans "Submit" %}</button>
+        <button class="simplemodal-close">{% trans "Cancel" %}</button>
+    </form>
+
+    <form id="add-new-file-form" action="" method="post" class="hide">{% csrf_token %}
+        <h3>{% trans "New File" %}</h3>
+        <div id="featured-filetype">
+            <label>{% trans "Featured File Type" %}</label><br />
+            <button type="button" class="set-file-type" data-filetype="seaf" title="{% trans "Click to choose" %}">seaf</button> <span>{% trans "online Rich Text format." %}</span>
+            {% if LANGUAGE_CODE == 'zh-cn' %}
+            <a href="http://www.seafile.com/help/seaf/" target="_blank">{% trans 'Details' %}</a><br />
+            {% else %}
+            <a href="http://www.seafile.com/en/help/seaf/" target="_blank">{% trans 'Details' %}</a><br />
+            {% endif %}
+            <button type="button" class="set-file-type" data-filetype="md" title="{% trans "Click to choose" %}">markdown</button> <span>{% trans "simple markup format." %}</span>
+            {% if LANGUAGE_CODE == 'zh-cn' %}
+            <a href="http://www.seafile.com/help/markdown/" target="_blank">{% trans 'Details' %}</a>
+            {% else %}
+            <a href="http://www.seafile.com/en/help/markdown/" target="_blank">{% trans 'Details' %}</a>
+            {% endif %}
+        </div>
+        <label>{% trans "File Name" %}</label><br/>
+        <input type="text" name="name" value="" class="input" maxlength="{{max_file_name}}"/><br />
+        <p class="error hide"></p>
+        <button type="submit" class="submit">{% trans "Submit" %}</button>
+        <button class="simplemodal-close">{% trans "Cancel" %}</button>
+    </form>
+
+    {% include "snippets/file_share_popup.html" %} {# dir/file share popup, need ENABLE_SUB_LIBRARY #}
+
+    <form id="rename-form" action="" method="post" class="hide">{% csrf_token %}
+        <h3></h3>
+        <p class="detail">{% trans "Rename %(name)s as:" %}</p>
+        <input type="hidden" name="oldname" value="" />
+        <input type="text" name="newname" value="" class="input" maxlength="{{max_file_name}}"/><br />
+        <p class="error hide"></p>
+        <button type="submit" class="submit">{% trans "Submit" %}</button>
+        <button class="simplemodal-close">{% trans "Cancel" %}</button>
+    </form>
+
+    <form id="mv-form" action="" method="post" class="file-choose-form hide">{% csrf_token %}
+        <div id="mv-dir-list" class="dir-tree-cont">
+            <h5 class="hd cspt"><span class="icon-caret-down"></span>{% trans "Current Library"%}</h5>
+            <img src="{{MEDIA_URL}}img/loading-icon.gif" alt="" class="loading-tip" />
+            <div id="current-repo-dirs"></div>
+            {% if not repo.encrypted %}
+            <h5 class="hd cspt"><span class="icon-caret-right"></span>{% trans "Other Libraries"%}</h5>
+            <img src="{{MEDIA_URL}}img/loading-icon.gif" alt="" class="loading-tip" style="display:none;" />
+            <div id="other-repos-dirs" class="hide"></div>
+            {% endif %}
+        </div>
+        <input type="hidden" name="obj_name" value="" />
+        <input type="hidden" name="obj_type" value="" />
+        <input type="hidden" name="op" value="" />
+        <input type="hidden" name="dst_repo" value="" />
+        <input type="hidden" name="dst_path" value="" />
+        <p class="error hide">{% trans "Please click and choose a directory."%}</p>
+        <button type="submit" class="submit">{% trans "Submit" %}</button>
+        <button class="simplemodal-close">{% trans "Cancel"%}</button>
+    </form>
+    <div id="mv-progress-popup" class="alc hide">
+        <p id="mv-details"></p>
+        <div id="mv-progress"></div>
+        <p id="mv-other-info" class="hide"></p>
+        <button id="cancel-mv">{% trans "Cancel" %}</button>
+    </div>
+
+    <div id="update-file-dialog" class="hide">
+        <h3 class="hd">{% trans "Update %(file_name)s" %}</h3>
+        {% if no_quota %}
+        <p class="error">{% trans "The owner of this library has run out of space." %}</p>
+        {% else %}
+        <form id="update-file-form" enctype="multipart/form-data" method="post" action="">{% csrf_token %}
+            <input type="hidden" name="target_file" />
+            <div class="fileupload-buttonbar">
+                <span class="fileinput-button vam">
+                    <span>{% trans "Choose a file" %}</span>
+                    <input type="file" name="file" />
+                </span>
+                {% if max_upload_file_size %}
+                <span class="vam">({% blocktrans with max_file_size=max_upload_file_size|filesizeformat %}Smaller than {{ max_file_size }}{% endblocktrans %})</span>
+                {% endif %}
+                <div class="fileupload-progress fade">
+                    <div class="progress progress-success progres-striped active">
+                        <div class="bar" style="width:0%"></div>
+                    </div>
+                    <div class="progress-extended"></div>
+                </div>
+                <p class="saving-tip alc hide"><img src="{{MEDIA_URL}}img/loading-icon.gif" alt="" style="margin-right:5px;" class="vam" />{% trans "Saving..." %}</p>
+            </div>
+            <table class="table table-striped"><tbody class="files" data-toggle="modal-gallery" data-target="#modal-gallery"></tbody></table>
+        </form>
+        {% endif %}
+    </div>
+
+{% endblock %}
+
+{% block extra_script %}
+<script type="text/template" id="top-template">
+    <p class="path fleft">
+        <a href="{% url 'lib' repo.id '' %}" class="path-link normal">{{ repo.name }}</a> /
+        <% for (var i = 0,len = path_list.length; i < len; i++) { %>
+            <% if (i == len - 1) { %>
+                <% print(path_list[i] + ' /'); %>
+            <% } else { %>
+                <% mid_path = path_list.slice(0, i+1).join('/'); %>
+                <a href="{{ SITE_ROOT }}lib/{{ repo.id }}/dir/<%= mid_path %>/" class="path-link normal"><%= mid_path %></a> /
+            <% } %>
+        <% } %>
+    </p>
+
+    <div class="repo-op fright">
+        {% if user_perm == 'rw' %}
+        <button id="upload-file" class="op-btn">{% trans "Upload" %}</button>
+        <button id="add-new-dir" class="op-btn">{% trans "New Directory" %}</button>
+        <button id="add-new-file" class="op-btn">{% trans "New File" %}</button>
+        {% endif %}
+
+        <% if (path != '/') { %>
+        {% if not repo.encrypted %}
+        <button class="op-btn" id="share-cur-dir" data-link="<%= share.link %>" data-token="<%= share.token %>" data-upload-link="<%= share.upload_link %>" data-upload-token="<%= share.upload_token %>" data-url="{% url 'get_shared_link' %}?repo_id={{ repo.id }}&type=d&p=<% print(e(path)); %>" data-upload-url="{% url 'get_shared_upload_link' %}?repo_id={{ repo.id }}&p=<% print(e(path)); %>">{% trans "Share" %}</button>
+        {% endif %}
+        <% } %>
+    </div>
+</script>
+<script type="text/template" id="dirent-template">
+    <% if (dirent.is_dir) { %>
+            <td class="select">
+                <span class="checkbox"><input type="checkbox" class="checkbox-orig" /></span>
+            </td>
+            <td class="star"></td>
+            <td class="dirent-icon"><img src="{{ MEDIA_URL }}img/folder-icon-24.png" alt="{% trans "Directory icon" %}" /></td>
+            <td>
+                <span class="dirent-name"><a href="{{SITE_ROOT}}lib/{{repo.id}}/dir/<% print(dirent.p_dpath.substr(1) + '/'); %>" class="dir-link normal"><%= dirent.obj_name %></a></span>
+            </td>
+            <td class="dirent-size"></td>
+            <td class="dirent-update">
+                <% if (dirent.last_modified) { %>
+                    <% print(dirent.last_update); %>
+                    <% } else { %>
+                    <% print("{% trans "Fetch failed" %}"); %>
+                    <% } %>
+            </td>
+            <td class="dirent-op">
+                <div class="repo-file-op vh">
+                    <div class="displayed-op">
+                        <a class="op download" href="{{SITE_ROOT}}repo/download_dir/{{repo.id}}/?p=<% print(e(dirent.p_dpath)); %>" title="{% trans "Download" %}"><img src="{{MEDIA_URL}}img/download.png" alt="" /></a>
+                        {% if not repo.encrypted %}
+                        <a class="op share" href="#" data-link="<%= dirent.sharelink %>" data-token="<%= dirent.sharetoken %>" data-upload-link="<%= dirent.uploadlink %>" data-upload-token="<%= dirent.uploadtoken %>" title="{% trans "Share" %}"><img src="{{MEDIA_URL}}img/dirent_share.png" alt="" /></a>
+                        {% endif %}
+                    </div>
+                    {% if user_perm == 'rw' %}
+                    <img src="{{ MEDIA_URL }}img/dropdown-arrow.png" title="{% trans "More operations" %}" alt="{% trans "More operations" %}" class="more-op-icon cspt" />
+                    <ul class="hidden-op hide">
+                        <li><a class="op del" href="#">{% trans "Delete" %}</a></li>
+                        <li><a class="op rename" href="#">{% trans "Rename" %}</a></li>
+                        <li><a class="op mv" href="#">{% trans "Move" %}</a></li>
+                        <li><a class="op cp" href="#">{% trans "Copy" %}</a></li>
+                    </ul>
+                    {% endif %}
+                </div>
+            </td>
+    <% } else { %>
+            <td class="select">
+                <span class="checkbox"><input type="checkbox" class="checkbox-orig" /></span>
+            </td>
+            <td class="star alc">
+                <% if (dirent.starred) { %>
+                    <span title="{% trans "starred" %}" class="icon-star file-star"></span>
+                    <% } else { %>
+                    <span title="{% trans "unstarred" %}" class="icon-star-empty file-star"></span>
+                    <% } %>
+            </td>
+            <td class="dirent-icon"><img src="{{ MEDIA_URL }}img/file/<%= dirent.file_icon %>" alt="{% trans "File" %}" /></td>
+            <td>
+                <span class="dirent-name"><a class="normal" href="{{SITE_ROOT}}lib/{{repo.id}}/file<% print(path + dirent.obj_name); %>" target="_blank"><%= dirent.obj_name %></a></span>
+            </td>
+            <td class="dirent-size"><%= dirent.file_size %></td>
+            <td class="dirent-update">
+                <% if (dirent.last_modified) { %>
+                    <% print(dirent.last_update); %>
+                    <% } else { %>
+                    <% print("{% trans "Fetch failed" %}"); %>
+                    <% } %>
+            </td>
+            <td class="dirent-op">
+                <div class="repo-file-op vh">
+                    <div class="displayed-op">
+                        <a class="op download" href="{{SITE_ROOT}}repo/{{repo.id}}/<%= dirent.obj_id %>/download/?p=<% print(e(path+dirent.obj_name)); %>" title="{% trans "Download" %}"><img src="{{MEDIA_URL}}img/download.png" alt="" /></a>
+                        {% if not repo.encrypted %}
+                        <a class="op share" href="#" data-link="<%= dirent.sharelink %>" data-token="<%= dirent.sharetoken %>" title="{% trans "Share" %}"><img src="{{MEDIA_URL}}img/dirent_share.png" alt="" /></a>
+                        {% endif %}
+                    </div>
+                    {% if user_perm == 'rw' %}
+                    <img src="{{ MEDIA_URL }}img/dropdown-arrow.png" title="{% trans "More Operations"%}" alt="{% trans "More Operations"%}" class="more-op-icon cspt" />
+                    <ul class="hidden-op hide">
+                        <li><a class="op del" href="#">{% trans "Delete" %}</a></li>
+                        <li><a class="op rename" href="#">{% trans "Rename" %}</a></li>
+                        <li><a class="op mv" href="#">{% trans "Move" %}</a></li>
+                        <li><a class="op cp" href="#">{% trans "Copy" %}</a></li>
+                        <li><a class="op file-update" href="#">{% trans "Update"%}</a></li>
+                        <li><a class="op file-history" href="{% url 'file_revisions' repo.id %}?p=<% print(e(path+dirent.obj_name)); %>" target="_blank">{% trans "History" %}</a></li>
+                    </ul>
+                    {% endif %}
+                </div>
+            </td>
+    <% } %>
+</script>
+<script type="text/javascript" src="{{MEDIA_URL}}js/underscore-min.js"></script>
+<script type="text/javascript" src="{{MEDIA_URL}}js/backbone-min.js"></script>
+{% upload_js %}
+<script type="text/javascript">
+$(function() {
+    $.getScript('{{ MEDIA_URL }}js/jquery.fileupload.min.js');
+});
+window.locale = {
+    "fileupload": {
+        "errors": {
+            "maxFileSize": "{% trans "File is too big" %}",
+            "minFileSize": "{% trans "File is too small" %}",
+            "acceptFileTypes": "{% trans "Filetype not allowed" %}",
+            "maxNumberOfFiles": "{% trans "Max number of files exceeded" %}",
+            "uploadedBytes": "{% trans "Uploaded bytes exceed file size" %}",
+            "emptyResult": "{% trans "Empty file upload result" %}"
+        },
+        "error": "{% trans "Error" %}",
+        "start": "{% trans "Start" %}",
+        "cancel": "{% trans "Cancel" %}",
+        "destroy": "{% trans "Delete" %}"
+    }
+};
+</script>
+<script type="text/javascript">
+// global var
+var no_file_op_popup = true;
+var popup_tr;
+
+var Dirent = Backbone.Model.extend({
+});
+
+var Dirents = Backbone.Collection.extend({
+    model: Dirent,
+    url: '{% url 'get_lib_dirents' repo.id %}',
+    parse: function (data) {
+        this.dirent_more = data.dirent_more;
+        this.more_start = data.more_start;
+        this.share = data.share;
+        return data.dirent_list; // return the array
+    },
+    more: function () {
+        this.fetch({
+            data: {
+                'p': this.path,
+                'start': this.more_start
+            },
+            error: function(xhr, textStatus, errorThrown) {
+                $('.loading-tip').hide();
+                ajaxErrorHandler(xhr, textStatus, errorThrown);
+            }
+        });
+    }
+});
+var dirents = new Dirents();
+
+var DirentView = Backbone.View.extend({
+    tagName: 'tr',
+    template: _.template($('#dirent-template').html()),
+    initialize: function() {
+        this.listenTo(this.model, "change", this.render);
+        this.listenTo(this.model, 'remove', this.remove); // for multi-dirents mv
+    },
+    render: function () {
+        var path = dirents.path;
+        if (path != '/') {
+            path += '/';
+        }
+        this.$el.html(this.template({dirent: this.model.attributes, path: path}));
+        $('.checkbox-orig', this.$el).unbind();
+        return this;
+    },
+    events: {
+        'mouseenter': 'highlight',
+        'mouseleave': 'rmHighlight',
+        'click .select': 'select',
+        'click .file-star': 'starFile',
+        'click .dir-link': 'visitDir',
+        'click .more-op-icon': 'togglePopup',
+        'click .share': 'share',
+        'click .del': 'delete',
+        'click .rename': 'rename',
+        'click .mv': 'mvcp',
+        'click .cp': 'mvcp',
+        'click .file-update': 'updateFile'
+    },
+    highlight: function () {
+        if (no_file_op_popup) {
+            this.$el.addClass('hl').find('.repo-file-op').removeClass('vh');
+        }
+    },
+    rmHighlight: function () {
+        if (no_file_op_popup) {
+            this.$el.removeClass('hl').find('.repo-file-op').addClass('vh');
+        }
+    },
+    select: function () {
+        var checkbox = this.$('.checkbox');
+        checkbox.toggleClass('checkbox-checked');
+        if (checkbox.hasClass('checkbox-checked')) {
+            this.model.set({'selected':true}, {silent:true}); // do not trigger the 'change' event.
+        } else {
+            this.model.set({'selected':false}, {silent:true});
+        }
+
+        var dirents_op = $('#dirents-op');
+        if ($('.checkbox-checked', $('.repo-file-list tr:gt(0)')).length > 0) {
+            dirents_op.removeClass('hide');
+            setDirentsOpPos();
+        } else {
+            dirents_op.addClass('hide');
+        }
+    },
+    starFile: function () {
+        var _this = this;
+        var starred = this.model.get('starred');
+        var ajax_url = starred ? '{% url 'repo_unstar_file' repo.id %}' : '{% url 'repo_star_file' repo.id %}';
+        ajax_url += '?file=' + e(dirents.path + this.model.get('obj_name'));
+        $.ajax({
+            url: ajax_url,
+            dataType: 'json',
+            cache: false,
+            success: function () {
+                if (starred) {
+                    _this.model.set({'starred':false});
+                } else {
+                    _this.model.set({'starred':true});
+                }
+            },
+            error: ajaxErrorHandler
+        });
+    },
+    visitDir: function () {
+        // show 'loading'
+        this.$('.dirent-icon img').attr({
+            'src':'{{MEDIA_URL}}img/loading-icon.gif',
+            'alt':''
+        });
+        // empty all models
+        dirents.reset();
+        // update url & dirents
+        router.navigate(this.$('.dir-link')[0].pathname.substr('{{SITE_ROOT}}'.length - 1), {trigger: true}); // offer an url fragment
+        return false;
+    },
+    togglePopup: function () {
+        var icon = this.$('.more-op-icon'),
+            popup = this.$('.hidden-op');
+
+        if (popup.hasClass('hide')) { // the popup is not shown
+            if (icon.position().left + icon.width() + popup.outerWidth() < icon.parent().width()) {
+                popup.css({'left': icon.position().left + icon.width() + 5});
+                if (icon.offset().top + popup.height() <= $('#main').offset().top + $('#main').height()) {
+                    popup.css('top', 6);
+                } else {
+                    popup.css('bottom', 2);
+                }
+            } else {
+                popup.css({'right':0});
+                if (icon.offset().top + popup.height() <= $('#main').offset().top + $('#main').height()) {
+                    popup.css('top', icon.position().top + icon.height() + 3);
+                } else {
+                    popup.css('bottom', icon.position().top + icon.height() + 3);
+                }
+            }
+            popup.removeClass('hide');
+            no_file_op_popup = false;
+            popup_tr = icon.parents('tr');
+        } else {
+            popup.addClass('hide');
+            no_file_op_popup = true;
+            popup_tr = '';
+        }
+    },
+    share: function () {
+        var op = this.$('.share'),
+            name = this.model.get('obj_name');
+        var cur_path = dirents.path;
+        var ajax_urls = {
+            'link': '{% url 'get_shared_link' %}?repo_id={{ repo.id }}&p=' + e(cur_path + name),
+            'upload-link': '{% url 'get_shared_upload_link' %}?repo_id={{ repo.id }}&p=' + e(cur_path + name)
+        };
+        var type = this.model.get('is_dir') ? 'd' : 'f';
+        if (type == 'd') {
+            ajax_urls['link'] += '&type=d';
+        }
+        showSharePopup(op, name, ajax_urls, type, cur_path);
+        return false;
+    },
+    delete: function () {
+        var dirent_name = this.model.get('obj_name');
+        var url_main = this.model.get('is_dir') ? '{% url 'delete_dir' repo.id %}' : '{% url 'delete_file' repo.id %}';
+        var el = this.$el;
+        $.ajax({
+            url: url_main + '?parent_dir=' + e(dirents.path) + '&name=' + e(dirent_name),
+            dataType: 'json',
+            success: function(data) {
+                el.remove();
+                no_file_op_popup = true;// make other items can work normally when hover
+                var msg = "{% trans "Successfully deleted %(name)s" %}";
+                msg = msg.replace('%(name)s', dirent_name);
+                feedback(msg, 'success');
+            },
+            error: ajaxErrorHandler
+        });
+        return false;
+    },
+    rename: function () {
+        var form = $('#rename-form'),
+            form_id = form.attr('id');
+        form.modal();
+        $('#simplemodal-container').css({'width':'auto', 'height':'auto'});
+
+        var is_dir = this.model.get('is_dir');
+        var hd_text = is_dir ? "{% trans "Rename Directory" %}" : "{% trans "Rename File" %}";
+        $('h3', form).html(hd_text);
+        var dirent_name = this.model.get('obj_name');
+        var op_detail = $('.detail', form);
+        op_detail.html(op_detail.html().replace('%(name)s', '<span class="op-target">' + dirent_name + '</span>'));
+
+        var _this = this;
+        form.submit(function() {
+            var new_name = $.trim(form.find('input[name="newname"]').val());
+            if (!new_name) {
+                apply_form_error(form_id, "{% trans "It is required." %}");
+                return false;
+            }
+            if (new_name == dirent_name) {
+                apply_form_error(form_id, "{% trans "You have not renamed it." %}");
+                return false;
+            }
+            var post_data = {'oldname': dirent_name, 'newname':new_name};
+            var post_url = is_dir ? '{% url 'rename_dir' repo.id %}' : '{% url 'rename_file' repo.id %}';
+            var path = dirents.path;
+            post_url += '?parent_dir=' + e(path);
+            var after_op_success = function (data) {
+                new_name = data['newname'];
+                var now = new Date().getTime()/1000;
+                $.modal.close();
+                _this.model.set({ // it will trigger 'change' event
+                    'obj_name': new_name,
+                    'last_modified': now,
+                    'last_update': "{% trans "Just now" %}",
+                    'sharelink': '',
+                    'sharetoken': ''
+                });
+                if (is_dir) {
+                    _this.model.set({
+                        'p_dpath': data['p_dpath']
+                    });
+                } else {
+                    _this.model.set({
+                        'starred': false
+                    });
+                }
+            };
+            ajaxPost({
+                'form': form,
+                'post_url': post_url,
+                'post_data': post_data,
+                'after_op_success': after_op_success,
+                'form_id': form_id
+            });
+            return false;
+        });
+        return false;
+    },
+    mvcp: function() {
+        var el = event.target || event.srcElement,
+            op_type = $(el).hasClass('mv') ? 'mv':'cp',
+            op_detail,
+            dirent = this.$el,
+            obj_name = this.model.get('obj_name'),
+            obj_type = this.model.get('is_dir') ? 'dir':'file',
+            form = $('#mv-form'), form_hd;
+
+        form.modal({appendTo:'#main', autoResize:true, focus:false});
+        $('#simplemodal-container').css({'width':'auto', 'height':'auto'});
+
+        if (op_type == 'mv') {
+            form_hd = obj_type == 'dir'? "{% trans "Move Directory" %}":"{% trans "Move File" %}";
+        } else {
+            form_hd = obj_type == 'dir'? "{% trans "Copy Directory" %}":"{% trans "Copy File" %}";
+        }
+
+        op_detail = op_type == 'mv' ? "{% trans "Move %(name)s to:" %}" : "{% trans "Copy %(name)s to:" %}";
+        op_detail = op_detail.replace('%(name)s', '<span class="op-target">' + obj_name + '</span>');
+        form.prepend('<h3>' + form_hd + '</h3><h4>' + op_detail + '</h4>');
+
+        $('input[name="op"]', form).val(op_type);
+        $('input[name="obj_type"]', form).val(obj_type);
+        $('input[name="obj_name"]', form).val(obj_name);
+
+        form.data('op_obj', dirent);
+        render_jstree_for_cur_path();
+        return false;
+    },
+    updateFile: function () {
+        var file_name = this.model.get('obj_name');
+        var form = $('#update-file-form');
+        var cur_path = dirents.path;
+        var upload_success = false;
+        var updated_file;
+        var this_model = this.model;
+        $('#update-file-dialog').modal({
+            focus:false,
+            containerCss: {width:600, height:$(window).height()/2},
+            onClose: function() {
+                $.modal.close();
+                if (upload_success) {
+                    var now = new Date().getTime()/1000;
+                    this_model.set({
+                        'obj_id': updated_file.id,
+                        'last_modified': now,
+                        'last_update': "{% trans "Just now" %}",
+                        // for IE, no 'size'
+                        'file_size': updated_file.size != undefined ? filesizeformat(updated_file.size, 1) : ''
+                    });
+                }
+            }
+        });
+        $('.simplemodal-wrap').css({'overflow':'auto'}); // for ie
+
+        $('input[name="target_file"]', form).val(cur_path + file_name);
+        var hd = $('#update-file-dialog .hd');
+        hd.html(hd.html().replace('%(file_name)s', '<span class="op-target">' + file_name + '</span>'));
+
+        $.ajax({
+            url: '{% url 'get_file_op_url' repo.id %}?op_type=update',
+            cache: false,
+            dataType: 'json',
+            success: function(data) {
+                // Initialize the jQuery File Upload widget:
+                form.fileupload({
+                    url: data['url'], // no '?head=cmt_id'
+                    {% if max_upload_file_size %}
+                    maxFileSize: {{max_upload_file_size}}, // in bytes
+                    {% endif %}
+                    maxNumberOfFiles: 1 // only 1 file can be uploaded
+                })
+                .bind('fileuploaddone', function(e, data) {
+                    if (data.textStatus == 'success') {
+                        upload_success = true;
+                        updated_file = data.result[0];
+                    }
+                });
+
+                // Enable iframe cross-domain access via redirect option:
+                form.fileupload(
+                    'option',
+                    'redirect',
+                    window.location.href.replace(/\/repo\/[-a-z0-9]{36}\/.*/, '/media/cors/result.html?%s')
+                );
+            },
+            error: ajaxErrorHandler
+        });
+        return false;
+    }
+});
+
+var LibView = Backbone.View.extend({
+    el: $('#repo-file-list'),
+    top_template: _.template($('#top-template').html()),
+    initialize: function () {
+        this.dirent_list = this.$('.repo-file-list');
+        $('th .checkbox-orig').unbind();
+
+        this.listenTo(dirents, 'add', this.addOne);
+        this.listenTo(dirents, 'reset', this.reset);
+        this.listenTo(dirents, 'sort', this.sort);
+    },
+    renderTop: function () {
+        var path = dirents.path,
+            path_list = [];
+        if (path != '/') {
+            path_list = path.substr(1).split('/');
+        }
+        $('.repo-file-list-topbar').html(this.top_template({
+            path: path,
+            path_list: path_list,
+            share: dirents.share
+        }));
+    },
+    addOne: function (dirent) {
+        var view = new DirentView({model: dirent});
+        this.dirent_list.append(view.render().el);
+        if (dirent === _.last(dirents.models) &&
+            !dirents.dirent_more) {
+            $('.loading-tip').hide();
+        }
+    },
+    reset: function () {
+        $('tr:gt(0)', this.dirent_list).remove();
+    },
+    sort: function () {
+        $('tr:gt(0)', this.dirent_list).remove();
+        dirents.each(this.addOne, this);
+    },
+    events: {
+        'click .path-link':'visitDir',
+        'click #upload-file':'uploadFile',
+        'click #add-new-dir':'newDir',
+        'click #add-new-file':'newFile',
+        'click #share-cur-dir':'share',
+        'click th.select':'select',
+        'click #by-name':'sortByName',
+        'click #by-time':'sortByTime',
+        'click #del-dirents':'delete',
+        'click #mv-dirents':'mv',
+        'click #cp-dirents':'cp'
+    },
+    visitDir: function () {
+        var path_link = event.target || event.srcElement;
+        // when cur dir is root dir, and click the link on root dir in '.path'
+        if (path_link.pathname == location.pathname) { // 'router.navigate()' won't send request
+            //router.get_dirents();
+            return false;
+        }
+        // show 'loading'
+        this.$('.path').append('<img src="{{MEDIA_URL}}img/loading-icon.gif" alt="" class="vam" />');
+        // empty all models
+        dirents.reset();
+        // update url & dirents
+        router.navigate(path_link.pathname.substr('{{SITE_ROOT}}'.length - 1), {trigger: true}); // 'pathname': relative url
+        return false;
+    },
+    uploadFile: function () {
+        var uploaded_files = []; // [{'id':'', 'name':'', 'size':''}]
+
+        // for 'add folder'
+        var cur_dirs = dirents.where({'is_dir':true});
+        var cur_dir_names = [];
+        $(cur_dirs).each(function(index, cur_dir) {
+            cur_dir_names.push(cur_dir.get('obj_name'));
+        });
+        var update_dir_names = []; // dirs with 'time' to be updated
+        var new_dir_names = [];
+
+        var dirent_list = this.dirent_list;
+        $('#upload-file-dialog').modal({
+            focus:false,
+            containerCss: {width:600, height:$(window).height()/1.5},
+            onClose: function() {
+                $.modal.close();
+                var now = new Date().getTime()/1000;
+                if (uploaded_files.length > 0) {
+                    $(uploaded_files).each(function() {
+                        var file = this;
+                        dirents.add({
+                            'is_file': true,
+                            'obj_name': file.name,
+                            'last_modified': now,
+                            'file_size': filesizeformat(file.size, 1),
+                            'obj_id': file.id,
+                            'file_icon': 'file.png',
+                            'last_update': "{% trans "Just now" %}",
+                            'starred': false,
+                            'sharelink': '',
+                            'sharetoken': ''
+                        });
+                    });
+                }
+                if (new_dir_names.length > 0) {
+                    $(new_dir_names).each(function(index, dir_name) {
+                        var new_dirent = dirents.add({
+                            'is_dir': true,
+                            'obj_name': dir_name,
+                            'last_modified': now,
+                            'last_update': "{% trans "Just now" %}",
+                            'p_dpath': dirents.path + '/' + dir_name,
+                            'sharelink': '',
+                            'sharetoken': '',
+                            'uploadlink': '',
+                            'uploadtoken': ''
+                        }, {silent:true});
+                        var view = new DirentView({model: new_dirent});
+                        $('tr:first', dirent_list).after(view.render().el); // put the new dir as the first one
+                    });
+                }
+                if (update_dir_names.length > 0) {
+                    $(update_dir_names).each(function(index, dir_name) {
+                        dirents.where({
+                            'is_dir':true,
+                            'obj_name': dir_name
+                        })[0].set({
+                            'last_modified': now,
+                            'last_update': "{% trans "Just now" %}"
+                        });
+                    });
+                }
+            }
+        });
+        $('.simplemodal-wrap').css({'overflow':'auto'}); // for ie
+
+        var form = $('#upload-file-form'),
+            parent_dir = $('input[name="parent_dir"]', form);
+        parent_dir.val(dirents.path);
+
+        try {
+            // Initialize the jQuery File Upload widget, which needs to use form action
+            form.fileupload({
+                //singleFileUploads: false // using 1 request to upload all files of a selection
+                sequentialUploads: true
+            })
+            .bind('fileuploadadd', function(e, data) {
+                var file = data.files[0];
+                if (file.name == '.') { // when 'add folder', a subdirectory is shown as '.'
+                    data.files.shift(); // rm the file
+                    return;
+                }
+            })
+            .bind('fileuploadsubmit', function(e, data) {
+                var file = data.files[0];
+                var file_path = file.webkitRelativePath, // can be undefined, '', or a valid path
+                    r_path;
+                // get url(token) for every file
+                if (!file.error) {
+                    $.ajax({
+                        url: '{% url 'get_file_op_url' repo.id %}?op_type=upload',
+                        cache: false,
+                        dataType: 'json',
+                        success: function(ret) {
+                            if (file_path) { // 'add folder'
+                                r_path = file_path.substring(0, file_path.lastIndexOf('/') + 1);
+                            } else {
+                                r_path = '';
+                            }
+                            $('input[name="relative_path"]', form).val(r_path);
+
+                            form.attr('action', ret['url']);
+                            data.jqXHR = form.fileupload('send', data);
+                        },
+                        error: function() {
+                            file.error = "{% trans "Failed to get upload url" %}";
+                        }
+                    });
+                }
+                return false;
+            })
+            .bind('fileuploaddone', function(e, data) {
+                if (data.textStatus == 'success') {
+                    var file = data.files[0];
+                    var file_path = file.webkitRelativePath;
+                    if (file_path) { // 'add folder'
+                        var new_dir_name = file_path.substring(0, file_path.indexOf('/'));
+                        if (cur_dir_names.indexOf(new_dir_name) == -1) {
+                            if (new_dir_names.indexOf(new_dir_name) == -1) {
+                                new_dir_names.push(new_dir_name);
+                            }
+                        } else {
+                            if (update_dir_names.indexOf(new_dir_name) == -1) {
+                                update_dir_names.push(new_dir_name);
+                            }
+                        }
+
+                        data.result[0].r_path = file_path; // to show in 'template_download'
+                    } else {
+                        uploaded_files.push(data.result[0]);
+                    }
+                }
+            });
+
+            if ('webkitdirectory' in $('input[type="file"]', $('#add-file'))[0]) {
+                $('#add-folder').show();
+                $('#add-file, #add-folder').click(function() {
+                    form.fileupload(
+                        'option',
+                        'fileInput',
+                        $('input[type="file"]', $(this))
+                    );
+                });
+            }
+            // Enable iframe cross-domain access via redirect option:
+            form.fileupload(
+                'option',
+                'redirect',
+                window.location.href.replace(/\/repo\/[-a-z0-9]{36}\/.*/, '/media/cors/result.html?%s')
+            );
+        } catch(e) { // in case the fileupload js file has not been loaded
+            form.append('<p class="error">' + "{% trans "Error. Please try later." %}" + '</p>');
+            setTimeout(function() { $.modal.close(); }, 1600);
+        }
+    },
+    newDir: function () {
+        var form = $('#add-new-dir-form'),
+            form_id = form.attr('id');
+        form.modal({appendTo:'#main'});
+        $('#simplemodal-container').css({'height':'auto'});
+        var dirent_list = this.dirent_list;
+        form.submit(function() {
+            var dirent_name = $.trim($('input[name="name"]', form).val());
+            if (!dirent_name) {
+                apply_form_error(form_id, "{% trans "It is required." %}");
+                return false;
+            }
+            var post_data = {'dirent_name': dirent_name};
+            var post_url = '{% url 'new_dir' repo.id %}?parent_dir=' + e(dirents.path);
+            var after_op_success = function(data) {
+                $.modal.close();
+                var now = new Date().getTime()/1000;
+                var new_dirent = dirents.add({
+                    'is_dir': true,
+                    'obj_name': data['name'],
+                    'last_modified': now,
+                    'last_update': "{% trans "Just now" %}",
+                    'p_dpath': data['p_dpath'],
+                    'sharelink': '',
+                    'sharetoken': '',
+                    'uploadlink': '',
+                    'uploadtoken': ''
+                }, {silent:true});
+                var view = new DirentView({model: new_dirent});
+                $('tr:first', dirent_list).after(view.render().el); // put the new dir as the first one
+            };
+            ajaxPost({
+                'form': form,
+                'post_url': post_url,
+                'post_data': post_data,
+                'after_op_success': after_op_success,
+                'form_id': form_id
+            });
+            return false;
+        });
+    },
+    newFile: function () {
+        var form = $('#add-new-file-form'),
+            form_id = form.attr('id');
+        form.modal({appendTo:'#main', focus:false, containerCss:{'padding':'20px 25px'}});
+        $('#simplemodal-container').css({'height':'auto'});
+        form.submit(function() {
+            var dirent_name = $.trim($('input[name="name"]', form).val());
+            if (!dirent_name) {
+                apply_form_error(form_id, "{% trans "It is required." %}");
+                return false;
+            }
+            // if it has an extension, make sure it has a name
+            if (dirent_name.lastIndexOf('.') != -1 && dirent_name.substr(0, dirent_name.lastIndexOf('.')).length == 0) {
+                apply_form_error(form_id, "{% trans "Only an extension there, please input a name." %}");
+                return false;
+            }
+            var post_data = {'dirent_name': dirent_name};
+            var path = dirents.path;
+            var post_url = '{% url 'new_file' repo.id %}?parent_dir=' + e(path);
+            var after_op_success = function(data) {
+                if (path.charAt(path.length - 1) != '/') {
+                    path += '/';
+                }
+                location.href = '{{SITE_ROOT}}lib/{{repo.id}}/file' + path + data['name'];
+            };
+            ajaxPost({
+                'form': form,
+                'post_url': post_url,
+                'post_data': post_data,
+                'after_op_success': after_op_success,
+                'form_id': form_id
+            });
+            return false;
+        });
+        // choose featured filetype
+        $('.set-file-type', form).click(function() {
+            var file_name = $('input[name="name"]', form);
+            file_name.val('.' + $(this).data('filetype'));
+            setCaretPos(file_name[0], 0);
+            file_name.focus();
+        });
+    },
+    share: function () {
+        var op = this.$('#share-cur-dir'),
+            name, aj_urls, type;
+        var cur_path = dirents.path;
+        name = cur_path.substr(cur_path.lastIndexOf('/') + 1);
+        aj_urls = {
+            'link': op.data('url'),
+            'upload-link': op.data('upload-url')
+        };
+        type = 'd';
+        showSharePopup(op, name, aj_urls, type, cur_path);
+    },
+    select: function () {
+        var checkbox = $('th .checkbox');
+        checkbox.toggleClass('checkbox-checked');
+
+        if (checkbox.hasClass('checkbox-checked')) {
+            $('.checkbox').addClass('checkbox-checked');
+            dirents.each(function(model) { model.set({'selected': true}, {silent: true}); });
+        } else {
+            $('.checkbox').removeClass('checkbox-checked');
+            dirents.each(function(model) { model.set({'selected': false}, {silent: true}); });
+        }
+
+        var dirents_op = $('#dirents-op');
+        if ($('.checkbox-checked', $('.repo-file-list tr:gt(0)')).length > 0) {
+            dirents_op.removeClass('hide');
+            setDirentsOpPos();
+        } else {
+            dirents_op.addClass('hide');
+        }
+    },
+    sortByName: function () {
+        var el = $('#by-name');
+        dirents.comparator = function(a, b) {
+            if (a.get('is_dir') && b.get('is_file')) {
+                return -1;
+            }
+            if (el.hasClass('icon-caret-up')) {
+                return a.get('obj_name').toLowerCase() < b.get('obj_name').toLowerCase() ? 1 : -1;
+            } else {
+                return a.get('obj_name').toLowerCase() < b.get('obj_name').toLowerCase() ? -1 : 1;
+            }
+        };
+        dirents.sort();
+        el.toggleClass('icon-caret-up icon-caret-down');
+    },
+    sortByTime: function () {
+        var el = $('#by-time');
+        dirents.comparator = function(a, b) {
+            if (a.get('is_dir') && b.get('is_file')) {
+                return -1;
+            }
+            if (el.hasClass('icon-caret-down')) {
+                return a.get('last_modified') < b.get('last_modified') ? 1 : -1;
+            } else {
+                return a.get('last_modified') < b.get('last_modified') ? -1 : 1;
+            }
+        };
+        dirents.sort();
+        el.toggleClass('icon-caret-up icon-caret-down');
+    },
+    delete: function () {
+        $('#confirm-popup').modal({appendTo:'#main'});
+        $('#simplemodal-container').css({'height':'auto'});
+        $('#confirm-con').html('<h3>' + "{% trans "Delete Items" %}" + '</h3><p>' + "{% trans "Are you sure you want to delete these selected items?" %}" + '</p>');
+        var del_dirents = function() {
+            $('#confirm-popup').append('<p style="color:red;">' + "{% trans "Processing..." %}" + '</p>');
+            var selected_dirents = dirents.where({'selected':true}),
+                selected_names = [];
+            $(selected_dirents).each(function() {
+                selected_names.push(this.get('obj_name'));
+            });
+            $.ajax({
+                url: '{% url 'delete_dirents' repo.id %}' + '?parent_dir=' + e(dirents.path),
+                type: 'POST',
+                dataType: 'json',
+                beforeSend: prepareCSRFToken,
+                traditional: true,
+                data: {
+                    'dirents_names': selected_names
+                },
+                success: function(data) {
+                    var del_len = data['deleted'].length,
+                        not_del_len = data['undeleted'].length,
+                        msg_s, msg_f;
+
+                    if (del_len > 0) {
+                        if (del_len == selected_names.length) {
+                            dirents.remove(selected_dirents);
+                            $('th .checkbox').removeClass('checkbox-checked');
+                        } else {
+                            $(selected_dirents).each(function() {
+                                if (this.get('obj_name') in data['deleted']) {
+                                    dirents.remove(this);
+                                }
+                            });
+                        }
+                        if (del_len == 1) {
+                            msg_s = "{% trans "Successfully deleted %(name)s." %}";
+                        } else if (del_len == 2) {
+                            msg_s = "{% trans "Successfully deleted %(name)s and 1 other item." %}";
+                        } else {
+                            msg_s = "{% trans "Successfully deleted %(name)s and %(amount)s other items." %}";
+                        }
+                        msg_s = msg_s.replace('%(name)s', data['deleted'][0]).replace('%(amount)s', del_len - 1);
+                        feedback(msg_s, 'success');
+                    }
+
+                    if (not_del_len > 0) {
+                        if (not_del_len == 1) {
+                            msg_f = "{% trans "Internal error. Failed to delete %(name)s." %}"
+                        } else if (not_del_len == 2) {
+                            msg_f = "{% trans "Internal error. Failed to delete %(name)s and 1 other item." %}"
+                        } else {
+                            msg_f = "{% trans "Internal error. Failed to delete %(name)s and %(amount)s other items." %}"
+                        }
+                        msg_f = msg_f.replace('%(name)s', data['undeleted'][0]).replace('%(amount)s', not_del_len - 1);
+                        feedback(msg_f, 'error');
+                    }
+                    $.modal.close();
+                    $('#dirents-op').addClass('hide');
+                },
+                error: function(xhr, textStatus, errorThrown) {
+                    $.modal.close();
+                    ajaxErrorHandler(xhr, textStatus, errorThrown);
+                }
+            });
+        };
+        $('#confirm-yes').unbind().click(del_dirents);
+    },
+    mv: function () {
+        this.mvcp({'op':'mv'});
+    },
+    cp: function () {
+        this.mvcp({'op':'cp'});
+    },
+    mvcp: function (params) {
+        var form = $('#mv-form');
+        form.modal({appendTo:'#main', autoResize:true, focus:false});
+        $('#simplemodal-container').css({'width':'auto', 'height':'auto'});
+
+        var op = params.op,
+            form_hd = op == 'mv' ? "{% trans "Move selected item(s) to:" %}" : "{% trans "Copy selected item(s) to:" %}";
+        form.prepend('<h3>' + form_hd + '</h3>');
+
+        render_jstree_for_cur_path();
+
+        // get models
+        var dirs = dirents.where({'is_dir':true, 'selected':true}),
+            files = dirents.where({'is_file':true, 'selected':true});
+        var dir_names = [], file_names = [];
+        $(dirs).each(function() {
+            dir_names.push(this.get('obj_name'));
+        });
+        $(files).each(function() {
+            file_names.push(this.get('obj_name'));
+        });
+        form.submit(function() {
+            var dst_repo = $('[name="dst_repo"]', form).val(),
+                dst_path = $('[name="dst_path"]', form).val(),
+                url_main;
+            var cur_path = dirents.path;
+
+            if (!$.trim(dst_repo) || !$.trim(dst_path)) {
+                $('.error', form).removeClass('hide');
+                return false;
+            }
+            if (dst_repo == '{{repo.id }}' && dst_path == cur_path) {
+                $('.error', form).html("{% trans "Invalid destination path" %}").removeClass('hide');
+                return false;
+            }
+
+            disable($('[type="submit"]', form));
+            form.append('<p style="color:red;">' + "{% trans "Processing..." %}" + '</p>');
+
+            if (dst_repo == '{{repo.id }}') {
+                // when mv/cp in current lib, files/dirs can be handled in batch, and no need to show progress
+                url_main = op == 'mv' ? '{% url 'mv_dirents' repo.id %}':'{% url 'cp_dirents' repo.id %}';
+                $.ajax({
+                    url: url_main + '?parent_dir=' + e(cur_path),
+                    type: 'POST',
+                    dataType: 'json',
+                    beforeSend: prepareCSRFToken,
+                    traditional: true,
+                    data: {
+                        'file_names': file_names,
+                        'dir_names': dir_names,
+                        'dst_repo': dst_repo,
+                        'dst_path': dst_path
+                    },
+                    success: function(data) {
+                        var success_len = data['success'].length,
+                            msg_s, msg_f,
+                            view_url = data['url'];
+
+                        $.modal.close();
+                        $('#dirents-op').addClass('hide');
+
+                        if (success_len > 0) {
+                            if (op == 'mv') {
+                                if (success_len == files.length + dirs.length) {
+                                    dirents.remove(dirs);
+                                    dirents.remove(files);
+                                } else {
+                                    $(dirs).each(function() {
+                                        if (this.get('obj_name') in data['success']) {
+                                            dirents.remove(this);
+                                        }
+                                    });
+                                    $(files).each(function() {
+                                        if (this.get('obj_name') in data['success']) {
+                                            dirents.remove(this);
+                                        }
+                                    });
+                                }
+                                if (success_len == 1) {
+                                    msg_s = "{% trans "Successfully moved %(name)s." %}";
+                                } else if (success_len == 2) {
+                                    msg_s = "{% trans "Successfully moved %(name)s and 1 other item." %}";
+                                } else {
+                                    msg_s = "{% trans "Successfully moved %(name)s and %(amount)s other items." %}";
+                                }
+                            } else { // cp
+                                if (success_len == 1) {
+                                    msg_s = "{% trans "Successfully copied %(name)s." %}";
+                                } else if (success_len == 2) {
+                                    msg_s = "{% trans "Successfully copied %(name)s and 1 other item." %}";
+                                } else {
+                                    msg_s = "{% trans "Successfully copied %(name)s and %(amount)s other items." %}";
+                                }
+                            }
+                            msg_s = msg_s.replace('%(name)s', data['success'][0]).replace('%(amount)s', success_len - 1);
+                            msg_s += ' <a href="' + view_url + '">' + "{% trans "View" %}" + '</a>';
+                            feedback(msg_s, 'success');
+                        }
+
+                        if (data['failed'].length > 0) {
+                            if (op == 'mv') {
+                                if (data['failed'].length > 1) {
+                                    msg_f = "{% trans "Internal error. Failed to move %(name)s and %(amount)s other item(s)." %}";
+                                } else {
+                                    msg_f = "{% trans "Internal error. Failed to move %(name)s." %}";
+                                }
+                            } else {
+                                if (data['failed'].length > 1) {
+                                    msg_f = "{% trans "Internal error. Failed to copy %(name)s and %(amount)s other item(s)." %}";
+                                } else {
+                                    msg_f = "{% trans "Internal error. Failed to copy %(name)s." %}";
+                                }
+                            }
+                            msg_f = msg_f.replace('%(name)s', data['failed'][0]).replace('%(amount)s', data['failed'].length - 1);
+                            feedback(msg_f, 'error');
+                        }
+                    },
+                    error: function(xhr, textStatus, errorThrown) {
+                        $.modal.close();
+                        ajaxErrorHandler(xhr, textStatus, errorThrown);
+                    }
+                });
+            } else {
+                // when mv/cp to another lib, files/dirs should be handled one by one, and need to show progress
+                var op_objs = dirents.where({'selected':true});
+                    i = 0;
+                // progress popup
+                var details = $('#mv-details'),
+                    cancel_btn = $('#cancel-mv'),
+                    other_info = $('#mv-other-info');
+
+                var mvcpDirent = function () {
+                    var op_obj = op_objs[i],
+                        obj_type = op_obj.get('is_dir') ? 'dir':'file',
+                        obj_name = op_obj.get('obj_name'),
+                        post_url;
+
+                    if (op == 'mv') {
+                        post_url = obj_type == 'dir' ? '{% url 'mv_dir' repo.id %}':'{% url 'mv_file' repo.id %}';
+                    } else {
+                        post_url = obj_type == 'dir' ? '{% url 'cp_dir' repo.id %}':'{% url 'cp_file' repo.id %}';
+                    }
+                    post_url += '?path=' + e(cur_path) + '&obj_name=' + e(obj_name);
+                    post_data = {
+                        'dst_repo': dst_repo,
+                        'dst_path': dst_path
+                    };
+                    var after_op_success = function (data) {
+                        var det_text = op == 'mv' ? "{% trans "Moving file %(index)s of %(total)s" %}": "{% trans "Copying file %(index)s of %(total)s" %}";
+                        details.html(det_text.replace('%(index)s', i + 1).replace('%(total)s', op_objs.length)).removeClass('vh');
+                        cancel_btn.removeClass('hide');
+                        var req_progress = function () {
+                            var task_id = data['task_id'];
+                            cancel_btn.data('task_id', task_id);
+                            $.ajax({
+                                url: '{% url "get_cp_progress" %}?task_id=' + e(task_id),
+                                dataType: 'json',
+                                success: function(data) {
+                                    var bar = $('.ui-progressbar-value', $('#mv-progress'));
+                                    if (!data['failed'] && !data['canceled'] && !data['successful']) {
+                                        setTimeout(req_progress, 1000);
+                                    } else {
+                                        if (data['successful']) {
+                                            bar.css('width', parseInt((i + 1)/op_objs.length*100, 10) + '%').show();
+                                            if (op == 'mv') {
+                                                dirents.remove(op_obj);
+                                            }
+                                            endOrContinue();
+                                        } else { // failed or canceled
+                                            if (data['failed']) {
+                                                var error_msg = op == 'mv' ? 'Failed to move %(name)s':'Failed to copy %(name)s';
+                                                cancel_btn.after('<p class="error">' + error_msg.replace('%(name)s', obj_name) + '</p>');
+                                                end();
+                                            }
+                                        }
+                                    }
+                                },
+                                error: function(xhr, textStatus, errorThrown) {
+                                    var error;
+                                    if (xhr.responseText) {
+                                        error = $.parseJSON(xhr.responseText).error;
+                                    } else {
+                                        error = "{% trans "Failed. Please check the network." %}";
+                                    }
+                                    cancel_btn.after('<p class="error">' + error + '</p>');
+                                    end();
+                                }
+                            });
+                        }; // 'req_progress' ends
+                        if (i == 0) {
+                            $.modal.close();
+                            $('#dirents-op').addClass('hide');
+                            setTimeout(function () {
+                                $('#mv-progress-popup').modal({containerCss: {
+                                    width: 300,
+                                    height: 150,
+                                    paddingTop: 50
+                                }, focus:false});
+                                $('#mv-progress').progressbar();
+                                req_progress();
+                            }, 100);
+                        } else {
+                            req_progress();
+                        }
+                    }; // 'after_op_success' ends
+                    ajaxPost({
+                        'form': form,
+                        'post_url': post_url,
+                        'post_data': post_data,
+                        'after_op_success': after_op_success,
+                        'form_id': form.attr('id')
+                    });
+                }; // 'mvcpDirent' ends
+                var endOrContinue = function () {
+                    if (i == op_objs.length - 1) {
+                        setTimeout(function () { $.modal.close(); }, 500);
+                    } else {
+                        mvcpDirent(++i);
+                    }
+                };
+                var end = function () {
+                    setTimeout(function () { $.modal.close(); }, 500);
+                };
+                mvcpDirent();
+                cancel_btn.click(function() {
+                    disable(cancel_btn);
+                    var task_id = $(this).data('task_id');
+                    $.ajax({
+                        url: '{% url "cancel_cp" %}?task_id=' + e(task_id),
+                        dataType: 'json',
+                        success: function(data) {
+                            other_info.html("{% trans "Canceled." %}").removeClass('hide');
+                            cancel_btn.addClass('hide');
+                            end();
+                        },
+                        error: function(xhr, textStatus, errorThrown) {
+                            var error;
+                            if (xhr.responseText) {
+                                error = $.parseJSON(xhr.responseText).error;
+                            } else {
+                                error = "{% trans "Failed. Please check the network." %}";
+                            }
+                            other_info.html(error).removeClass('hide');
+                            enable(cancel_btn);
+                        }
+                    });
+                });
+            }
+            return false;
+        });
+    }
+});
+var libView = new LibView();
+
+var LibRouter = Backbone.Router.extend({
+    routes: {
+        'lib/{{repo.id}}/dir/(*path)': 'get_dirents'
+    },
+    get_dirents: function(path) {
+        if (!path) {
+            path = '/';
+        } else {
+            path = '/' + path.substr(0, path.length - 1);
+        }
+        dirents.path = path;
+        dirents.fetch({
+            data: {'p': path},
+            success: function (collection, response, opts) {
+                libView.renderTop();
+                // the dir is empty
+                if (response.dirent_list.length == 0) {
+                    $('.loading-tip').hide();
+                }
+            }
+        });
+    }
+});
+var router = new LibRouter();
+Backbone.history.start({
+    pushState: true,
+    root: '{{SITE_ROOT}}'
+});
+
+var last_start = 0; // to stop repeated request
+$(window).scroll(function() {
+    // scroll to the bottom, trigger 'request more'
+    var start = dirents.more_start;
+    if (dirents.dirent_more && $(window).scrollTop() + $(window).height() > $(document).height() - parseInt($('#repo-file-list').css('margin-bottom')) && start != last_start) {
+        last_start = start;
+        dirents.more();
+    }
+});
+
+// hide 'hidden-op' popup
+$(document).click(function(e) {
+    var target =  e.target || event.srcElement;
+    if (!no_file_op_popup &&
+        !$('.more-op-icon, .hidden-op').is(target) &&
+        !$('.hidden-op').find('*').is(target)) {
+        $('.hidden-op').addClass('hide');
+        no_file_op_popup = true;
+        if (!popup_tr.find('*').is(target)) {
+            popup_tr.removeClass('hl').find('.repo-file-op').addClass('vh'); // clicked place: the first tr, place out of the table
+            $('tr:gt(0)').each(function() { // when other tr is clicked
+                if ($(this).find('*').is(target)) {
+                    $(this).addClass('hl').find('.repo-file-op').removeClass('vh');
+                }
+            });
+        }
+    }
+});
+
+function ajaxPost(params) { // params: {}
+    var form = params.form,
+        post_url = params.post_url,
+        post_data = params.post_data,
+        after_op_success = params.after_op_success,
+        form_id = params.form_id;
+    var submit_btn = form.children('[type="submit"]');
+    disable(submit_btn);
+    $.ajax({
+        url: post_url,
+        type: 'POST',
+        dataType: 'json',
+        beforeSend: prepareCSRFToken,
+        data: post_data,
+        success: function(data) {
+            if (data['success']) {
+                after_op_success(data);
+            }
+        },
+        error: function(xhr, textStatus, errorThrown) {
+            var err;
+            if (xhr.responseText) {
+                err = $.parseJSON(xhr.responseText).error;
+            } else {
+                err = "{% trans "Failed. Please check the network." %}";
+            }
+            apply_form_error(form_id, err);
+            enable(submit_btn);
+        }
+    });
+}
+function setDirentsOpPos() {
+    var dirents_op = $('#dirents-op');
+    dirents_op.css({
+        'left': $('#repo-file-list').offset().left - dirents_op.outerWidth(true) - 20,
+        'top': $(window).height()/2
+    });
+}
+// render jstree for current path
+function render_jstree_for_cur_path() {
+    var form = $('#mv-form'),
+        file_tree = new FileTree(),
+        container = $('#current-repo-dirs'),
+        loading_tip = container.prev();
+    var cur_path = dirents.path;
+    container.data('site_root', '{{SITE_ROOT}}');
+    $.ajax({
+        url: '{% url 'get_dirents' repo.id %}?path=' + e(cur_path) + '&dir_only=true&all_dir=true',
+        cache: false,
+        dataType: 'json',
+        success: function(data) {
+            var json_data = [];
+            var repo_data = {
+                'data': '{{ repo.props.name }}',
+                'attr': {'repo_id': '{{ repo.props.id }}', 'root_node': true},
+                'state': 'open'
+            };
+
+            var path_eles = cur_path.split('/');
+            path_eles.pop();
+            /* e.g.
+             * path: '/xx/'
+             * path_eles: ['', 'xx']
+             * data: [["xxx", "xx", "test1022"], ["lkjj", "kjhkhi"]]
+             * when no dir in '/', data will be [[]];
+             */
+            var len = data.length;
+            var children = [];
+            for (var i = len - 1; i > -1; i--) {
+                children[i] = [];
+                if (i == len - 1) {
+                    for (var j = 0, len_i = data[i].length; j < len_i; j++) {
+                        children[i].push({
+                            'data': data[i][j],
+                            'state': 'closed'
+                        });
+                    }
+                } else {
+                    for (var j = 0, len_i = data[i].length; j < len_i; j++) {
+                        if (data[i][j] == path_eles[i+1]) {
+                            children[i].push({
+                                'data': data[i][j],
+                                'state': 'open',
+                                'children': children[i+1]
+                            });
+                        } else {
+                            children[i].push({
+                                'data': data[i][j],
+                                'state': 'closed'
+                            });
+                        }
+                    }
+                }
+            }
+            if (children[0].length > 0) {
+                $.extend(repo_data, {'children': children[0]});
+            }
+            json_data.push(repo_data);
+
+            loading_tip.hide();
+            file_tree.renderDirTree(container, form, json_data);
+            container.removeClass('hide');
+        },
+        error: function() {
+            var cur_repo = [{
+                'data': '{{ repo.props.name }}',
+                'attr': {'repo_id': '{{ repo.props.id }}', 'root_node': true},
+                'state': 'closed'
+            }];
+            loading_tip.hide();
+            file_tree.renderDirTree(container, form, cur_repo);
+            container.removeClass('hide');
+        }
+    });
+}
+$('#mv-form').submit(function() {
+    var form = $(this),
+        form_id = form.attr('id'),
+        post_url = '', post_data = {},
+        path = dirents.path,
+        after_op_success;
+
+        var dst_repo = $('[name="dst_repo"]', form).val(),
+            dst_path = $('[name="dst_path"]', form).val(),
+            op = $('[name="op"]', form).val(),
+            obj_name = $('[name="obj_name"]', form).val(),
+            obj_type = $('[name="obj_type"]', form).val(),
+            op_obj = form.data('op_obj');
+
+        if (!op_obj) { // for mv-dirents, cp-dirents
+            return false;
+        }
+
+        if (!$.trim(dst_repo) || !$.trim(dst_path)) {
+            $('.error', form).removeClass('hide');
+            return false;
+        }
+        if (dst_repo == '{{repo.id }}' && (dst_path == path || (obj_type == 'dir' && dst_path == path + obj_name + '/'))) {
+            $('.error', form).html("{% trans "Invalid destination path" %}").removeClass('hide');
+            return false;
+        }
+        if (op == 'mv') {
+            post_url = obj_type == 'dir' ? '{% url 'mv_dir' repo.id %}':'{% url 'mv_file' repo.id %}';
+        } else {
+            post_url = obj_type == 'dir' ? '{% url 'cp_dir' repo.id %}':'{% url 'cp_file' repo.id %}';
+        }
+        post_url += '?path=' + e(path) + '&obj_name=' + e(obj_name);
+        post_data = {
+            'dst_repo': dst_repo,
+            'dst_path': dst_path
+        };
+        after_op_success = function(data) {
+            $.modal.close();
+            msg = data['msg'];
+            if (!data['task_id']) { // no progress
+                if (op=='mv') {
+                    op_obj.remove();
+                }
+                feedback(msg, 'success');
+            } else {
+                var details = $('#mv-details'),
+                    cancel_btn = $('#cancel-mv'),
+                    other_info = $('#mv-other-info');
+                cancel_btn.removeClass('hide');
+                setTimeout(function () {
+                    $('#mv-progress-popup').modal({containerCss: {
+                        width: 300,
+                        height: 150,
+                        paddingTop: 50
+                    }, focus:false});
+                    var det_text = op == 'mv' ? "{% trans "Moving %(name)s" %}": "{% trans "Copying %(name)s" %}";
+                    details.html(det_text.replace('%(name)s', trimFilename(obj_name, 20)));
+                    $('#mv-progress').progressbar();
+                    req_progress();
+                }, 100);
+                var req_progress = function () {
+                    $.ajax({
+                        url: '{% url "get_cp_progress" %}?task_id=' + e(data['task_id']),
+                        dataType: 'json',
+                        success: function(data) {
+                            var bar = $('.ui-progressbar-value', $('#mv-progress'));
+                            if (!data['failed'] && !data['canceled'] && !data['successful']) {
+                                if (data['done'] == data['total']) {
+                                    bar.css('width', '100%'); // 'done' and 'total' can be both 0
+                                    details.addClass('vh');
+                                    cancel_btn.addClass('hide');
+                                    other_info.html("{% trans "Saving..." %}").removeClass('hide');
+                                } else {
+                                    bar.css('width', parseInt(data['done']/data['total']*100, 10) + '%');
+                                }
+                                bar.show();
+                                setTimeout(req_progress, 1000);
+                            } else if (data['successful']) {
+                                $.modal.close();
+                                if (op=='mv') {
+                                    op_obj.remove();
+                                }
+                                feedback(msg, 'success');
+                            } else { // failed or canceled
+                                details.addClass('vh');
+                                var other_msg = data['failed'] ? "{% trans "Failed." %}" : "{% trans "Canceled." %}";
+                                other_info.html(other_msg).removeClass('hide');
+                                cancel_btn.addClass('hide');
+                                setTimeout(function () { $.modal.close(); }, 1000);
+                            }
+                        },
+                        error: function(xhr, textStatus, errorThrown) {
+                            var error;
+                            if (xhr.responseText) {
+                                error = $.parseJSON(xhr.responseText).error;
+                            } else {
+                                error = "{% trans "Failed. Please check the network." %}";
+                            }
+                            details.addClass('vh')
+                            other_info.html(error).removeClass('hide');
+                            cancel_btn.addClass('hide');
+                            setTimeout(function () { $.modal.close(); }, 1000);
+                        }
+                    });
+                };
+                cancel_btn.click(function() {
+                    disable(cancel_btn);
+                    $.ajax({
+                        url: '{% url "cancel_cp" %}?task_id=' + e(data['task_id']),
+                        dataType: 'json',
+                        success: function(data) {
+                            details.addClass('vh')
+                            other_info.html("{% trans "Canceled." %}").removeClass('hide');
+                            cancel_btn.addClass('hide');
+                            setTimeout(function () {$.modal.close();}, 1000);
+                        },
+                        error: function(xhr, textStatus, errorThrown) {
+                            var error;
+                            if (xhr.responseText) {
+                                error = $.parseJSON(xhr.responseText).error;
+                            } else {
+                                error = "{% trans "Failed. Please check the network." %}";
+                            }
+                            other_info.html(error).removeClass('hide');
+                            enable(cancel_btn);
+                        }
+                    });
+                });
+            }
+        }
+
+    ajaxPost({
+        'form': form,
+        'post_url': post_url,
+        'post_data': post_data,
+        'after_op_success': after_op_success,
+        'form_id': form_id
+    });
+    return false;
+});
+$('#mv-dir-list .hd').click(function() {
+    var span = $('span', $(this)),
+        form = $('#mv-form'),
+        loading_tip = $(this).next(),
+        dir_tree_container = loading_tip.next().data('site_root', '{{SITE_ROOT}}'),
+        file_tree = new FileTree();
+    if (span.hasClass('icon-caret-right')) {
+        span.attr('class','icon-caret-down');
+        loading_tip.show();
+        if (dir_tree_container.attr('id') == 'current-repo-dirs') {
+            render_jstree_for_cur_path();
+        } else {
+            $.ajax({
+                url: '{% url 'unenc_rw_repos' %}',
+                cache: false,
+                dataType: 'json',
+                success: function(data) {
+                    var other_repos = [];
+                    for (var i = 0, len = data.length; i < len; i++) {
+                        if (data[i].id != '{{repo.id}}') {
+                        other_repos.push({
+                            'data': data[i].name,
+                            'attr': {'repo_id': data[i].id, 'root_node': true},
+                            'state': 'closed'
+                            });
+                        }
+                    }
+                    loading_tip.hide();
+                    file_tree.renderDirTree(dir_tree_container, form, other_repos);
+                    dir_tree_container.removeClass('hide');
+                }
+            });
+        }
+    } else {
+        span.attr('class','icon-caret-right');
+        dir_tree_container.addClass('hide');
+    }
+});
+$(function() {
+    // for file private share
+    $.getScript('{{ MEDIA_URL }}js/select2.min.js');
+});
+{% include "snippets/shared_link_js.html" %}
+</script>
+{% endblock %}
