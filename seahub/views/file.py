@@ -288,6 +288,21 @@ def file_size_exceeds_preview_limit(file_size, file_type):
 @repo_passwd_set_required
 def view_file(request, repo_id):
     """
+    Old 'file view'
+    """
+    path = request.GET.get('p', '/').rstrip('/')
+    return _file_view(request, repo_id, path)
+
+@login_required
+@repo_passwd_set_required
+def file_view(request, repo_id, path):
+
+    # path is like 'xx.c', 'aa/xx.c'
+    path = '/' + path
+    return _file_view(request, repo_id, path)
+
+def _file_view(request, repo_id, path):
+    """
     Steps to view file:
     1. Get repo id and file path.
     2. Check user's permission.
@@ -303,7 +318,6 @@ def view_file(request, repo_id):
     if not repo:
         raise Http404
 
-    path = request.GET.get('p', '/').rstrip('/')
     obj_id = get_file_id_by_path(repo_id, path)
     if not obj_id:
         return render_error(request, _(u'File does not exist'))

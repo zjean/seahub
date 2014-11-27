@@ -226,13 +226,13 @@
 {% block extra_script %}
 <script type="text/template" id="top-template">
     <p class="path fleft">
-        <a href="{{ SITE_ROOT }}lib/{{ repo.id }}/contents/" class="path-link normal">{{ repo.name }}</a> /
+        <a href="{% url 'lib' repo.id '' %}" class="path-link normal">{{ repo.name }}</a> /
         <% for (var i = 0,len = path_list.length; i < len; i++) { %>
             <% if (i == len - 1) { %>
                 <% print(path_list[i] + ' /'); %>
             <% } else { %>
                 <% mid_path = path_list.slice(0, i+1).join('/'); %>
-                <a href="{{ SITE_ROOT }}lib/{{ repo.id }}/contents/<%= mid_path %>/" class="path-link normal"><%= mid_path %></a> /
+                <a href="{{ SITE_ROOT }}lib/{{ repo.id }}/dir/<%= mid_path %>/" class="path-link normal"><%= mid_path %></a> /
             <% } %>
         <% } %>
     </p>
@@ -259,7 +259,7 @@
             <td class="star"></td>
             <td class="dirent-icon"><img src="{{ MEDIA_URL }}img/folder-icon-24.png" alt="{% trans "Directory icon" %}" /></td>
             <td>
-                <span class="dirent-name"><a href="{{SITE_ROOT}}lib/{{repo.id}}/contents/<% print(dirent.p_dpath.substr(1) + '/'); %>" class="dir-link normal"><%= dirent.obj_name %></a></span>
+                <span class="dirent-name"><a href="{{SITE_ROOT}}lib/{{repo.id}}/dir/<% print(dirent.p_dpath.substr(1) + '/'); %>" class="dir-link normal"><%= dirent.obj_name %></a></span>
             </td>
             <td class="dirent-size"></td>
             <td class="dirent-update">
@@ -301,7 +301,7 @@
             </td>
             <td class="dirent-icon"><img src="{{ MEDIA_URL }}img/file/<%= dirent.file_icon %>" alt="{% trans "File" %}" /></td>
             <td>
-                <span class="dirent-name"><a class="normal" href="{{SITE_ROOT}}repo/{{repo.id}}/files/?p=<% print(e(path + dirent.obj_name)); %>" target="_blank"><%= dirent.obj_name %></a></span>
+                <span class="dirent-name"><a class="normal" href="{{SITE_ROOT}}lib/{{repo.id}}/file<% print(path + dirent.obj_name); %>" target="_blank"><%= dirent.obj_name %></a></span>
             </td>
             <td class="dirent-size"><%= dirent.file_size %></td>
             <td class="dirent-update">
@@ -980,7 +980,7 @@ var LibView = Backbone.View.extend({
                 if (path.charAt(path.length - 1) != '/') {
                     path += '/';
                 }
-                location.href = '{% url 'repo_view_file' repo.id %}?p=' + e(path) + e(data['name']);
+                location.href = '{{SITE_ROOT}}lib/{{repo.id}}/file' + path + data['name'];
             };
             ajaxPost({
                 'form': form,
@@ -1393,7 +1393,7 @@ var libView = new LibView();
 
 var LibRouter = Backbone.Router.extend({
     routes: {
-        'lib/{{repo.id}}/contents/(*path)': 'get_dirents'
+        'lib/{{repo.id}}/dir/(*path)': 'get_dirents'
     },
     get_dirents: function(path) {
         if (!path) {

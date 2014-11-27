@@ -6,7 +6,7 @@ from django.views.generic import TemplateView
 from seahub.views import *
 from seahub.views.file import view_file, view_history_file, view_trash_file,\
     view_snapshot_file, file_edit, view_shared_file, view_file_via_shared_dir,\
-    text_diff, view_priv_shared_file
+    text_diff, view_priv_shared_file, file_view
 from seahub.views.repo import repo, repo_history_view, lib
 from notifications.views import notification_list
 from group.views import group_list
@@ -83,7 +83,9 @@ urlpatterns = patterns('',
     url(r'^repo/(?P<repo_id>[-0-9a-f]{36})/owner/$', repo_transfer_owner, name='repo_transfer_owner'),
     url(r'^repo/(?P<repo_id>[-0-9a-f]{36})/passwd/$', repo_change_passwd, name='repo_change_passwd'),
 
-    url(r'^lib/(?P<repo_id>[-0-9a-f]{36})/contents/(?P<path>.*)$', lib, name='lib'),
+    ### lib ###
+    url(r'^lib/(?P<repo_id>[-0-9a-f]{36})/dir/(?P<path>.*)$', lib, name='lib'),
+    url(r'^lib/(?P<repo_id>[-0-9a-f]{36})/file/(?P<path>.*)$', file_view, name='file_view'),
 
     ### share file/dir, upload link ###
     url(r'^s/f/(?P<token>[a-f0-9]{10})/$', view_priv_shared_file, name="view_priv_shared_file"),
