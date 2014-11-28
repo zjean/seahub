@@ -231,8 +231,7 @@
             <% if (i == len - 1) { %>
                 <% print(path_list[i] + ' /'); %>
             <% } else { %>
-                <% mid_path = path_list.slice(0, i+1).join('/'); %>
-                <a href="{{ SITE_ROOT }}lib/{{ repo.id }}/dir/<%= mid_path %>/" class="path-link normal"><%= mid_path %></a> /
+                <a href="{{ SITE_ROOT }}lib/{{ repo.id }}/dir/<% print(path_list.slice(0, i+1).join('/')); %>/" class="path-link normal"><%= path_list[i] %></a> /
             <% } %>
         <% } %>
     </p>
@@ -1402,13 +1401,15 @@ var LibRouter = Backbone.Router.extend({
             path = '/' + path.substr(0, path.length - 1);
         }
         dirents.path = path;
+        var loading_tip = $('#repo-file-list .loading-tip');
+        loading_tip.show();
         dirents.fetch({
             data: {'p': path},
             success: function (collection, response, opts) {
                 libView.renderTop();
                 // the dir is empty
                 if (response.dirent_list.length == 0) {
-                    $('.loading-tip').hide();
+                    loading_tip.hide();
                 }
             }
         });
