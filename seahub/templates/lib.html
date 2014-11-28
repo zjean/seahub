@@ -274,7 +274,7 @@
                     <div class="displayed-op">
                         <a class="op download" href="{{SITE_ROOT}}repo/download_dir/{{repo.id}}/?p=<% print(e(dirent.p_dpath)); %>" title="{% trans "Download" %}"><img src="{{MEDIA_URL}}img/download.png" alt="" /></a>
                         {% if not repo.encrypted %}
-                        <a class="op share" href="#" data-link="<%= dirent.sharelink %>" data-token="<%= dirent.sharetoken %>" data-upload-link="<%= dirent.uploadlink %>" data-upload-token="<%= dirent.uploadtoken %>" title="{% trans "Share" %}"><img src="{{MEDIA_URL}}img/dirent_share.png" alt="" /></a>
+                        <a class="op share" href="#" data-link="<%= dirent.sharelink %>" data-token="<%= dirent.sharetoken %>" data-upload-link="<%= dirent.uploadlink %>" data-upload-token="<%= dirent.uploadtoken %>" title="{% trans "Share" %}"><img src="{{MEDIA_URL}}img/share_20.png" alt="" /></a>
                         {% endif %}
                     </div>
                     {% if user_perm == 'rw' %}
@@ -316,7 +316,7 @@
                     <div class="displayed-op">
                         <a class="op download" href="{{SITE_ROOT}}repo/{{repo.id}}/<%= dirent.obj_id %>/download/?p=<% print(e(path+dirent.obj_name)); %>" title="{% trans "Download" %}"><img src="{{MEDIA_URL}}img/download.png" alt="" /></a>
                         {% if not repo.encrypted %}
-                        <a class="op share" href="#" data-link="<%= dirent.sharelink %>" data-token="<%= dirent.sharetoken %>" title="{% trans "Share" %}"><img src="{{MEDIA_URL}}img/dirent_share.png" alt="" /></a>
+                        <a class="op share" href="#" data-link="<%= dirent.sharelink %>" data-token="<%= dirent.sharetoken %>" title="{% trans "Share" %}"><img src="{{MEDIA_URL}}img/share_20.png" alt="" /></a>
                         {% endif %}
                     </div>
                     {% if user_perm == 'rw' %}
