@@ -52,7 +52,14 @@
             <p class="path fleft"></p>
             <div class="repo-op fright">
                 {% if user_perm == 'rw' %}
+                    {% if no_quota %}
                 <button id="upload-file" class="op-btn">{% trans "Upload" %}</button>
+                    {% else %}
+                <div id="upload-file" class="op-btn upload-file-btn">
+                    <span>{% trans "Upload"%}</span>
+                    <input type="file" name="file" multiple />
+                </div>
+                    {% endif %}
                 <button id="add-new-dir" class="op-btn">{% trans "New Directory" %}</button>
                 <button id="add-new-file" class="op-btn">{% trans "New File" %}</button>
                 {% endif %}
@@ -83,50 +90,22 @@
 
     {# popups starts #}
     <div id="upload-file-dialog" class="hide">
-        <h3>{% trans "Upload Files" %}</h3>
         {% if no_quota %}
+        <h3>{% trans "Upload Files" %}</h3>
         <p class="error">{% trans "The owner of this library has run out of space." %}</p>
         {% else %}
-        <form id="upload-file-form" enctype="multipart/form-data" method="post" action="">{% csrf_token %}
-            <input type="hidden" name="parent_dir" value="" />
-            <input type="hidden" name="relative_path" value="" />
-            <div class="row fileupload-buttonbar">
-                <div>
-                    <span class="fileinput-button vam" id="add-file">
-                        <span class="icon-plus"></span>
-                        <span>{% trans "Add Files" %}</span>
-                        <input type="file" name="file" multiple />
-                    </span>
-                    <span class="fileinput-button vam" id="add-folder" style="display:none;">
-                        <span class="icon-plus"></span>
-                        <span>{% trans "Add folder" %}</span>
-                        <input type="file" name="file" multiple directory webkitdirectory />
-                    </span>
-                    <button type="submit" class="start vam">
-                        <span class="icon-upload"></span>
-                        <span>{% trans "Start All" %}</span>
-                    </button>
-                    <button type="reset" class="cancel vam">
-                        <span class="icon-ban-circle"></span>
-                        <span>{% trans "Cancel All" %}</span>
-                    </button>
-                </div>
-                <ol class="tip">
-                    <li>{% trans "Drag & Drop is supported for Chrome, Safari 5.0+, Firefox 4.0+, IE 10.0+" %}</li>
-                    {% if max_upload_file_size %}
-                    <li>{% blocktrans with max_file_size=max_upload_file_size|filesizeformat %}File size should be smaller than {{ max_file_size }}{% endblocktrans %}</li>
-                    {% endif %}
-                </ol>
-                <div class="fileupload-progress fade">
-                    <div class="progress progress-success progres-striped active">
-                        <div class="bar" style="width:0%"></div>
-                    </div>
-                    <div class="progress-extended"></div>
-                </div>
-                <p class="saving-tip alc hide"><img src="{{MEDIA_URL}}img/loading-icon.gif" alt="" style="margin-right:5px;" class="vam" />{% trans "Saving..." %}</p>
+            <h3 class="hd"><span class="status"></span> <span class="total-progress hide"></span></h3>
+            <div class="ops">
+                <img src="{{MEDIA_URL}}img/minus.png" alt="" class="fold-switch cspt" />
+                <img src="{{MEDIA_URL}}img/close.png" alt="close" title="{% trans "close" %}" class="close cspt hide" />
             </div>
-            <table class="table table-striped"><tbody class="files" data-toggle="modal-gallery" data-target="#modal-gallery"></tbody></table>
-        </form>
+            <div class="con">
+                <div class="row fileupload-buttonbar">
+                    <button type="button" class="cancel cspt fright">{% trans "Cancel All" %}</button>
+                </div>
+                <p class="saving-tip alc clear hide"><img src="{{MEDIA_URL}}img/loading-icon.gif" alt="" style="margin-right:5px;" class="vam" />{% trans "Saving..." %}</p>
+                <table class="table table-striped"><tbody class="files" data-toggle="modal-gallery" data-target="#modal-gallery"></tbody></table>
+            </div>
         {% endif %}
     </div>
 
@@ -244,12 +223,6 @@
     <% } %>
 </script>
 <script type="text/template" id="libop-template">
-    {% if user_perm == 'rw' %}
-    <button id="upload-file" class="op-btn">{% trans "Upload" %}</button>
-    <button id="add-new-dir" class="op-btn">{% trans "New Directory" %}</button>
-    <button id="add-new-file" class="op-btn">{% trans "New File" %}</button>
-    {% endif %}
-
     <% if (path != '/') { %>
     {% if not repo.encrypted %}
     <button class="op-btn" id="share-cur-dir" data-link="<%= share.link %>" data-token="<%= share.token %>" data-upload-link="<%= share.upload_link %>" data-upload-token="<%= share.upload_token %>" data-url="{% url 'get_shared_link' %}?repo_id={{ repo.id }}&type=d&p=<% print(e(path)); %>" data-upload-url="{% url 'get_shared_upload_link' %}?repo_id={{ repo.id }}&p=<% print(e(path)); %>">{% trans "Share" %}</button>
@@ -341,11 +314,9 @@
 </script>
 <script type="text/javascript" src="{{MEDIA_URL}}js/underscore-min.js"></script>
 <script type="text/javascript" src="{{MEDIA_URL}}js/backbone-min.js"></script>
+{% if not no_quota and user_perm == 'rw' %}
 {% upload_js %}
 <script type="text/javascript">
-$(function() {
-    $.getScript('{{ MEDIA_URL }}js/jquery.fileupload.min.js');
-});
 window.locale = {
     "fileupload": {
         "errors": {
@@ -357,12 +328,128 @@ window.locale = {
             "emptyResult": "{% trans "Empty file upload result" %}"
         },
         "error": "{% trans "Error" %}",
+        "uploaded": "{% trans "uploaded" %}",
+        "canceled": "{% trans "canceled" %}",
         "start": "{% trans "Start" %}",
         "cancel": "{% trans "Cancel" %}",
         "destroy": "{% trans "Delete" %}"
     }
 };
+$(function() {
+    $.getScript('{{ MEDIA_URL }}js/jquery.fileupload.min.js', function () {
+        var popup = $('#upload-file-dialog').addClass('fixed-upload-file-dialog');;
+        var popup_height = '150px';
+        popup.css({'height': popup_height}).data('height', popup_height);
+        var fu_status = $('.status', popup),
+            total_progress = $('.total-progress', popup),
+            cancel_all_btn = $('.fileupload-buttonbar .cancel', popup),
+            close_icon = $('.close', popup);
+        var uploaded_files = [];
+
+        fu_status.data({
+            'complete_status':"{% trans "File Upload complete" %}",
+            'cancel_status':"{% trans "File Upload canceled" %}"
+        });
+
+        popup.fileupload({
+            fileInput: $('#upload-file input'),
+            autoUpload:true,
+            sequentialUploads: true
+        })
+        .bind('fileuploadadd', function() {
+            popup.removeClass('hide');
+            fu_status.html("{% trans "File Uploading..." %}");
+            cancel_all_btn.removeClass('hide');
+            close_icon.addClass('hide');
+
+            popup.fileupload('option', 'formData', {'parent_dir': dirents.path });
+        })
+        .bind('fileuploadsubmit', function(e, data) {
+            var _this = $(this);
+            var file = data.files[0];
+            // get url(token) for every file
+            if (!file.error) {
+                $.ajax({
+                    url: '{% url 'get_file_op_url' repo.id %}?op_type=upload',
+                    cache: false,
+                    dataType: 'json',
+                    success: function(ret) {
+                        data.url = ret['url'];
+                        data.jqXHR = _this.fileupload('send', data);
+                    },
+                    error: function() {
+                        file.error = "{% trans "Failed to get upload url" %}";
+                    }
+                });
+                return false;
+            }
+        })
+        .bind('fileuploadprogressall', function (e, data) {
+            total_progress.html(parseInt(data.loaded / data.total * 100, 10) + '% ' + '<span style="font-size:14px;color:#555;">(' + $(this).data('fileupload')._formatBitrate(data.bitrate) + ')</span>').removeClass('hide');
+        })
+        .bind('fileuploaddone', function(e, data) {
+            if (data.textStatus == 'success') {
+                if (data.formData.parent_dir == dirents.path) {
+                    uploaded_files.push(data.result[0]);
+                }
+            }
+        })
+        .bind('fileuploadstop', function () {
+            if (popup.fileupload('option','formData').parent_dir != dirents.path) {
+                return;
+            }
+            var now = parseInt(new Date().getTime()/1000);
+            if (uploaded_files.length > 0) {
+                var dirs = dirents.where({'is_dir':true });
+                var last_dir = $($('.repo-file-list tr')[dirs.length]);
+                $(uploaded_files).each(function() {
+                    var file = this;
+                    var new_dirent = dirents.add({
+                        'is_file': true,
+                        'obj_name': file.name,
+                        'last_modified': now,
+                        'file_size': filesizeformat(file.size, 1),
+                        'obj_id': file.id,
+                        'file_icon': 'file.png',
+                        'last_update': "{% trans "Just now" %}",
+                        'starred': false,
+                        'sharelink': '',
+                        'sharetoken': ''
+                    }, {silent: true});
+                    var view = new DirentView({model: new_dirent});
+                    last_dir.after(view.render().el);
+                });
+            }
+            uploaded_files = [];
+        });
+
+        // Enable iframe cross-domain access via redirect option:
+        popup.fileupload(
+            'option',
+            'redirect',
+            window.location.href.replace(/\/repo\/[-a-z0-9]{36}\/.*/, '/media/cors/result.html?%s')
+        );
+    });
+});
+// fold/unfold the dialog
+$('#upload-file-dialog .fold-switch').click(function() {
+    var popup = $('#upload-file-dialog');
+    var full_ht = parseInt(popup.data('height'));
+    var main_con = $('.fileupload-buttonbar, .table', popup);
+    if (popup.height() == full_ht) {
+        popup.height($('.hd', popup).outerHeight(true));
+        main_con.addClass('hide');
+    } else {
+        popup.height(full_ht);
+        main_con.removeClass('hide');
+    }
+});
+$('#upload-file-dialog .close').click(function() {
+    $('#upload-file-dialog').addClass('hide');
+    $('#upload-file-dialog .files').empty();
+});
 </script>
+{% endif %}
 <script type="text/javascript">
 // global var
 var no_file_op_popup = true;
@@ -721,10 +808,22 @@ var LibView = Backbone.View.extend({
         }));
     },
     renderLibop: function () {
-        $('.repo-file-list-topbar .repo-op').html(this.libop_template({
-            path: dirents.path,
-            share: dirents.share
-        }));
+        var path = dirents.path;
+        if (path == '/') {
+            $('#share-cur-dir').remove();
+        } else {
+            var share_btn = $.trim(this.libop_template({
+                path: path,
+                share: dirents.share
+            }));
+            if (share_btn) {
+                if ($('#share-cur-dir').length > 0) {
+                    $('#share-cur-dir').replaceWith(share_btn);
+                } else {
+                    $('.repo-file-list-topbar .repo-op').append(share_btn);
+                }
+            }
+        }
     },
     addOne: function (dirent) {
         var view = new DirentView({model: dirent});
@@ -770,161 +869,9 @@ var LibView = Backbone.View.extend({
         return false;
     },
     uploadFile: function () {
-        var uploaded_files = []; // [{'id':'', 'name':'', 'size':''}]
-
-        // for 'add folder'
-        var cur_dirs = dirents.where({'is_dir':true});
-        var cur_dir_names = [];
-        $(cur_dirs).each(function(index, cur_dir) {
-            cur_dir_names.push(cur_dir.get('obj_name'));
-        });
-        var update_dir_names = []; // dirs with 'time' to be updated
-        var new_dir_names = [];
-
-        var dirent_list = this.dirent_list;
-        $('#upload-file-dialog').modal({
-            focus:false,
-            containerCss: {width:600, height:$(window).height()/1.5},
-            onClose: function() {
-                $.modal.close();
-                var now = new Date().getTime()/1000;
-                if (uploaded_files.length > 0) {
-                    $(uploaded_files).each(function() {
-                        var file = this;
-                        dirents.add({
-                            'is_file': true,
-                            'obj_name': file.name,
-                            'last_modified': now,
-                            'file_size': filesizeformat(file.size, 1),
-                            'obj_id': file.id,
-                            'file_icon': 'file.png',
-                            'last_update': "{% trans "Just now" %}",
-                            'starred': false,
-                            'sharelink': '',
-                            'sharetoken': ''
-                        });
-                    });
-                }
-                if (new_dir_names.length > 0) {
-                    $(new_dir_names).each(function(index, dir_name) {
-                        var new_dirent = dirents.add({
-                            'is_dir': true,
-                            'obj_name': dir_name,
-                            'last_modified': now,
-                            'last_update': "{% trans "Just now" %}",
-                            'p_dpath': dirents.path + '/' + dir_name,
-                            'sharelink': '',
-                            'sharetoken': '',
-                            'uploadlink': '',
-                            'uploadtoken': ''
-                        }, {silent:true});
-                        var view = new DirentView({model: new_dirent});
-                        $('tr:first', dirent_list).after(view.render().el); // put the new dir as the first one
-                    });
-                }
-                if (update_dir_names.length > 0) {
-                    $(update_dir_names).each(function(index, dir_name) {
-                        dirents.where({
-                            'is_dir':true,
-                            'obj_name': dir_name
-                        })[0].set({
-                            'last_modified': now,
-                            'last_update': "{% trans "Just now" %}"
-                        });
-                    });
-                }
-            }
-        });
-        $('.simplemodal-wrap').css({'overflow':'auto'}); // for ie
-
-        var form = $('#upload-file-form'),
-            parent_dir = $('input[name="parent_dir"]', form);
-        parent_dir.val(dirents.path);
-
-        try {
-            // Initialize the jQuery File Upload widget, which needs to use form action
-            form.fileupload({
-                //singleFileUploads: false // using 1 request to upload all files of a selection
-                sequentialUploads: true
-            })
-            .bind('fileuploadadd', function(e, data) {
-                var file = data.files[0];
-                if (file.name == '.') { // when 'add folder', a subdirectory is shown as '.'
-                    data.files.shift(); // rm the file
-                    return;
-                }
-            })
-            .bind('fileuploadsubmit', function(e, data) {
-                var file = data.files[0];
-                var file_path = file.webkitRelativePath, // can be undefined, '', or a valid path
-                    r_path;
-                // get url(token) for every file
-                if (!file.error) {
-                    $.ajax({
-                        url: '{% url 'get_file_op_url' repo.id %}?op_type=upload',
-                        cache: false,
-                        dataType: 'json',
-                        success: function(ret) {
-                            if (file_path) { // 'add folder'
-                                r_path = file_path.substring(0, file_path.lastIndexOf('/') + 1);
-                            } else {
-                                r_path = '';
-                            }
-                            $('input[name="relative_path"]', form).val(r_path);
-
-                            form.attr('action', ret['url']);
-                            data.jqXHR = form.fileupload('send', data);
-                        },
-                        error: function() {
-                            file.error = "{% trans "Failed to get upload url" %}";
-                        }
-                    });
-                }
-                return false;
-            })
-            .bind('fileuploaddone', function(e, data) {
-                if (data.textStatus == 'success') {
-                    var file = data.files[0];
-                    var file_path = file.webkitRelativePath;
-                    if (file_path) { // 'add folder'
-                        var new_dir_name = file_path.substring(0, file_path.indexOf('/'));
-                        if (cur_dir_names.indexOf(new_dir_name) == -1) {
-                            if (new_dir_names.indexOf(new_dir_name) == -1) {
-                                new_dir_names.push(new_dir_name);
-                            }
-                        } else {
-                            if (update_dir_names.indexOf(new_dir_name) == -1) {
-                                update_dir_names.push(new_dir_name);
-                            }
-                        }
-
-                        data.result[0].r_path = file_path; // to show in 'template_download'
-                    } else {
-                        uploaded_files.push(data.result[0]);
-                    }
-                }
-            });
-
-            if ('webkitdirectory' in $('input[type="file"]', $('#add-file'))[0]) {
-                $('#add-folder').show();
-                $('#add-file, #add-folder').click(function() {
-                    form.fileupload(
-                        'option',
-                        'fileInput',
-                        $('input[type="file"]', $(this))
-                    );
-                });
-            }
-            // Enable iframe cross-domain access via redirect option:
-            form.fileupload(
-                'option',
-                'redirect',
-                window.location.href.replace(/\/repo\/[-a-z0-9]{36}\/.*/, '/media/cors/result.html?%s')
-            );
-        } catch(e) { // in case the fileupload js file has not been loaded
-            form.append('<p class="error">' + "{% trans "Error. Please try later." %}" + '</p>');
-            setTimeout(function() { $.modal.close(); }, 1600);
-        }
+        {% if no_quota %}
+        $('#upload-file-dialog').modal();
+        {% endif %}
     },
     newDir: function () {
         var form = $('#add-new-dir-form'),
@@ -1419,8 +1366,7 @@ var LibRouter = Backbone.Router.extend({
             data: {'p': path},
             success: function (collection, response, opts) {
                 libView.renderLibop();
-                // the dir is empty
-                if (response.dirent_list.length == 0) {
+                if (response.dirent_list.length == 0) { // the dir is empty
                     loading_tip.hide();
                 }
             }
