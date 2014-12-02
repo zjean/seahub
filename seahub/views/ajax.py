@@ -290,6 +290,7 @@ def list_dir(request, repo_id):
         'more_start': more_start,
         'ENABLE_SUB_LIBRARY': settings.ENABLE_SUB_LIBRARY,
         "sub_lib_enabled": sub_lib_enabled,
+        "enable_add_folder": settings.ENABLE_ADD_FOLDER,
         'current_commit': head_commit,
         'info_commit': info_commit,
     }   

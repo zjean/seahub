@@ -205,6 +205,9 @@ ENABLE_MAKE_GROUP_PUBLIC = False
 # show or hide library 'download' button
 SHOW_REPO_DOWNLOAD_BUTTON = False
 
+# enable 'add_folder' or not
+ENABLE_ADD_FOLDER = False
+
 # mininum length for password of encrypted library
 REPO_PASSWORD_MIN_LENGTH = 8
 
