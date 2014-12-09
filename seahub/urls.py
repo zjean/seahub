@@ -275,3 +275,7 @@ if TRAFFIC_STATS_ENABLED:
     urlpatterns += patterns('',
         url(r'^sys/trafficadmin/$', sys_traffic_admin, name='sys_trafficadmin'),
     )
+
+urlpatterns += patterns('',
+  url(r'^shib/', include('shibboleth.urls', namespace='shibboleth')),
+)
