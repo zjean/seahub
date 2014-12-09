@@ -75,7 +75,7 @@ function showSharePopup(op, name, aj_urls, type, cur_path) {
     $("#file-share-tabs").tabs();
 
     // share link
-    if (op.data('link')) {
+    if (op.attr('data-link')) {
         $('#gen-link-btn, #link-options').addClass('hide');
         $('#share-link-body').removeClass('hide');
         var link = op.data('link');
@@ -295,7 +295,7 @@ $('#gen-link-btn').click(function() {
                 $('#shared-link-text').css({'width':$('#linkwidth').width() + 25});
                 $('#linkwidth').remove();
                 $('#share-link-body').removeClass('hide');
-                obj.data('link', link).data('token', data['token']);
+                obj.attr({ 'data-link': link, 'data-token': data['token']});
             },
             error: function(xhr, textStatus, errorThrown) {
                 if (xhr.responseText) {
