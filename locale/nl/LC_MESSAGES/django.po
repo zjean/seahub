@@ -321,7 +321,7 @@ msgstr "%(file)s aangepast"
 
 #: seahub/api2/templates/api2/events.html:19
 msgid "No activity now or the function is not supported."
-msgstr "Geem activiteit of de functie wordt niet ondersteund"
+msgstr "Geen activiteit of de functie wordt niet ondersteund"
 
 #: seahub/api2/templates/api2/events_body.html:17
 #: seahub/templates/snippets/events_body.html:29
@@ -387,7 +387,7 @@ msgstr "Wachtwoord"
 msgid ""
 "Please enter a correct username and password. Note that both fields are "
 "case-sensitive."
-msgstr "Voer geldige gebruikersnaam en wachtwoord in. Beide zijn hoofdlettergevoelig"
+msgstr "Voer een geldige gebruikersnaam en wachtwoord in. Beide zijn hoofdlettergevoelig"
 
 #: seahub/auth/forms.py:42
 msgid "This account is inactive."
@@ -413,7 +413,7 @@ msgstr "E-mail verzenden is mislukt, e-mail dienst is niet goed geconfigureerd. 
 msgid ""
 "That e-mail address doesn't have an associated user account. Are you sure "
 "you've registered?"
-msgstr "Dat e-mail adress is niet gekoppeld aan een gebruikersaccount. Weet u zeker dat u bent ingeschreven?"
+msgstr "Dat e-mailadres is niet gekoppeld aan een gebruikersaccount. Weet u zeker dat u bent ingeschreven?"
 
 #: seahub/auth/forms.py:108
 #, python-format
